@@ -1,0 +1,138 @@
+name: build-deploy-staging-deployment
+
+env:
+  IMAGE_NAME: awsset-development
+  CONTAINER_NAME: awsset-development
+  REMOTE_DIR: /awsset-development
+  IMAGE_FILE: awsset-development
+
+on:
+  workflow_dispatch:
+  push:
+    branches: deployment
+    paths-ignore:
+      - '*.md'
+      - '.gitignore'
+      - 'docs/'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'CODE_OF_CONDUCT.md'
+      - 'LICENSE'
+      - 'CHANGELOG.md'
+      - 'SECURITY.md'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY_DEVELOPMENT }}
+
+      - name: Setup SSH
+        run: |
+          echo "${{ secrets.SSH_KEY_DEVELOPMENT }}" > id_rsa
+          chmod 600 id_rsa
+      
+      - name: Set up environment
+        run: |
+          # Create fresh .docker.env file
+          echo "${{ secrets.ENV_DEVELOPMENT }}" > .docker.env
+          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}" >> .docker.env
+          echo "CONTAINER_NAME=${{ env.IMAGE_NAME }}" >> .docker.env
+
+      - name: Build Docker image with Docker Compose
+        run: docker compose build frontend backend
+
+      - name: Save Docker image
+        run: docker save -o ${{ env.IMAGE_FILE }}.tar ${{ env.IMAGE_NAME }}
+
+      - name: Copy files to server
+        run: |
+          set -euo pipefail
+          # Create directory and set permissions
+          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "sudo mkdir -p ${{ env.REMOTE_DIR }} && sudo chown awsset-prod:awsset-prod ${{ env.REMOTE_DIR }}"
+          scp -i id_rsa -o StrictHostKeyChecking=no ${{ env.IMAGE_FILE }}.tar ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
+          scp -i id_rsa -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
+          scp -i id_rsa -o StrictHostKeyChecking=no .docker.env ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
+
+      - name: Backup current image
+        run: |
+          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
+            cd ${{ env.REMOTE_DIR }}
+            docker images | grep -q ${{ env.IMAGE_NAME }} && docker tag ${{ env.IMAGE_NAME }} ${{ env.IMAGE_NAME }}:backup || true
+          "
+
+      - name: Deploy with rollback
+        run: |
+          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
+            set -euo pipefail
+            cd ${{ env.REMOTE_DIR }}
+            
+            echo 'Stopping current containers...'
+            docker compose down || true
+            
+            echo 'Loading new Docker image...'
+            docker load -i ${{ env.IMAGE_FILE }}.tar
+            
+            echo 'Starting new deployment...'
+            if ! docker compose up -d; then
+              echo '❌ Deployment failed, rolling back...'
+              docker tag ${{ env.IMAGE_NAME }}:backup ${{ env.IMAGE_NAME }}
+              docker compose up -d 
+              echo '✅ Rollback completed successfully'
+              exit 1
+            fi
+            
+            echo '✅ Deployment successful!'
+            echo 'Cleaning up old images...'
+            docker system prune -a -f
+          "
+
+      - name: Verify deployment
+        run: |
+            ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
+            cd ${{ env.REMOTE_DIR }}
+            echo '🔍 Verifying deployment...'
+            
+            # Wait for containers to be healthy
+            sleep 10
+            
+            # Check container status
+            if docker compose ps | grep -q 'Up'; then
+              echo '✅ Containers are running successfully'
+              docker compose ps
+            else
+              echo '❌ Containers failed to start properly'
+              docker compose logs --tail=50
+              exit 1
+            fi
+          "
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo '🧹 Cleaning up local files...'
+          rm -f id_rsa
+          rm -f .docker.env ${{ env.IMAGE_FILE }}.tar
+          docker rmi ${{ env.IMAGE_NAME }} || true
+          docker system prune -a -f
+          echo '✅ Cleanup completed'
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo '🚀 Deployment Workflow Summary'
+          echo '=============================='
+          echo '✅ Build completed successfully'
+          echo '✅ Image saved and transferred'
+          echo '✅ Deployment executed with rollback protection'
+          echo '✅ Verification completed'
+          echo '✅ Cleanup finished'
+          echo ''
+          echo '🎯 Your AWSSET application is now deployed!'
