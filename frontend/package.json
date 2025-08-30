@@ -1,7 +1,7 @@
 {
-  "name": "aws-chatbot-frontend",
-  "version": "1.0.0",
-  "description": "AWS Chatbot - React Frontend Dashboard",
+  "name": "awsset-frontend",
+  "version": "2.1.0",
+  "description": "AWSSET - AI-Powered Cloud Management Dashboard",
   "main": "src/index.js",
   "scripts": {
     "start": "react-scripts start",

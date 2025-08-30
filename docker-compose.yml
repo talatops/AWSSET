@@ -5,12 +5,18 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile  
+      args:
+        - REACT_APP_API_URL=http://localhost:8000
+        - REACT_APP_WEBSOCKET_URL=ws://localhost:8000/ws/realtime
     ports:
       - "3000:3000"
     environment:
       - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WEBSOCKET_URL=ws://localhost:8000/ws/realtime
       - NODE_ENV=development
+      - GENERATE_SOURCEMAP=false
+      - CHOKIDAR_USEPOLLING=true
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -18,6 +24,7 @@ services:
       - backend
     networks:
       - awschatbot-network
+    restart: unless-stopped
 
   # Backend - Python FastAPI
   backend:

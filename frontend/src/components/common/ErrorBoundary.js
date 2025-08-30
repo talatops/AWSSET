@@ -68,7 +68,7 @@ class ErrorBoundary extends React.Component {
                 </Typography>
                 
                 <Typography variant="body1" color="text.secondary" mb={3}>
-                  An unexpected error occurred in the AWS Chatbot dashboard. 
+                  An unexpected error occurred in the AWSSET dashboard. 
                   Don't worry, your data is safe.
                 </Typography>
 

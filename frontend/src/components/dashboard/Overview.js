@@ -752,11 +752,11 @@ const Overview = () => {
           sx={{ mt: 3 }}
           action={
             <Button color="inherit" size="small">
-              Try AI Chat →
+                              Try AI Assistant →
             </Button>
           }
         >
-          💡 <strong>Pro Tip:</strong> Ask the AI chatbot to help you optimize costs or troubleshoot issues!
+                          💡 <strong>Pro Tip:</strong> Ask the AI assistant to help you optimize costs or troubleshoot issues!
         </Alert>
       </motion.div>
     </Box>

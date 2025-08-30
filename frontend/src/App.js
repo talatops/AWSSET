@@ -27,7 +27,7 @@ function App() {
         <Box textAlign="center">
           <CircularProgress size={60} thickness={4} />
           <Box mt={2} color="text.secondary">
-            Loading AWS Chatbot...
+            Loading AWSSET...
           </Box>
         </Box>
       </Box>

@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { io } from 'socket.io-client';
 import { toast } from 'react-toastify';
 import { useAuth } from './AuthContext';
 
@@ -15,11 +14,15 @@ export const WebSocketProvider = ({ children }) => {
   const [systemStatus, setSystemStatus] = useState(null);
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttempts = useRef(0);
+  const pingIntervalRef = useRef(null);
+  const isUnmountedRef = useRef(false);
   const maxReconnectAttempts = 5;
 
   const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_URL || 'ws://localhost:8000/ws/realtime';
 
   useEffect(() => {
+    isUnmountedRef.current = false;
+    
     if (isAuthenticated && token) {
       connectWebSocket();
     } else {
@@ -27,6 +30,7 @@ export const WebSocketProvider = ({ children }) => {
     }
 
     return () => {
+      isUnmountedRef.current = true;
       disconnectWebSocket();
     };
   }, [isAuthenticated, token]);
@@ -41,31 +45,37 @@ export const WebSocketProvider = ({ children }) => {
       
       newSocket.onopen = () => {
         console.log('WebSocket connected');
-        setConnected(true);
-        setSocket(newSocket);
-        reconnectAttempts.current = 0;
-        
-        // Clear any existing reconnection timeout
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-          reconnectTimeoutRef.current = null;
-        }
+        if (!isUnmountedRef.current) {
+          setConnected(true);
+          setSocket(newSocket);
+          reconnectAttempts.current = 0;
+          
+          // Clear any existing reconnection timeout
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
+          }
 
-        // Don't show toast for now to avoid spam
-        // toast.success('Connected to real-time server');
+          // Start keepalive ping
+          startPingInterval(newSocket);
+        }
       };
 
       newSocket.onclose = (event) => {
         console.log('WebSocket disconnected:', event.reason);
-        setConnected(false);
-        setSocket(null);
+        stopPingInterval();
+        
+        if (!isUnmountedRef.current) {
+          setConnected(false);
+          setSocket(null);
 
-        if (event.code === 1008 || event.code === 1011) {
-          // Server initiated disconnect, don't reconnect
-          console.log('Server disconnected WebSocket');
-        } else {
-          // Connection lost, attempt to reconnect
-          scheduleReconnect();
+          if (event.code === 1008 || event.code === 1011) {
+            // Server initiated disconnect, don't reconnect
+            console.log('Server disconnected WebSocket');
+          } else {
+            // Connection lost, attempt to reconnect
+            scheduleReconnect();
+          }
         }
       };
 
@@ -92,6 +102,11 @@ export const WebSocketProvider = ({ children }) => {
 
   const handleWebSocketMessage = (data) => {
     console.log('📨 Received WebSocket message:', data);
+    
+    // Check if component is still mounted before updating state
+    if (isUnmountedRef.current) {
+      return;
+    }
     
     switch (data.type) {
       case 'aws_stats_update':
@@ -152,10 +167,14 @@ export const WebSocketProvider = ({ children }) => {
   };
 
   const disconnectWebSocket = () => {
+    stopPingInterval();
+    
     if (socket) {
       socket.close();
-      setSocket(null);
-      setConnected(false);
+      if (!isUnmountedRef.current) {
+        setSocket(null);
+        setConnected(false);
+      }
     }
 
     if (reconnectTimeoutRef.current) {
@@ -164,7 +183,33 @@ export const WebSocketProvider = ({ children }) => {
     }
   };
 
+  const startPingInterval = (socket) => {
+    stopPingInterval(); // Clear any existing interval
+    
+    pingIntervalRef.current = setInterval(() => {
+      if (socket && socket.readyState === WebSocket.OPEN && !isUnmountedRef.current) {
+        try {
+          socket.send(JSON.stringify({ type: 'ping' }));
+          console.log('🏓 Sent ping');
+        } catch (error) {
+          console.error('Failed to send ping:', error);
+        }
+      }
+    }, 30000); // Send ping every 30 seconds
+  };
+
+  const stopPingInterval = () => {
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
+  };
+
   const scheduleReconnect = () => {
+    if (isUnmountedRef.current) {
+      return; // Don't reconnect if component is unmounted
+    }
+    
     if (reconnectAttempts.current >= maxReconnectAttempts) {
       toast.error('Failed to connect to chat server. Please refresh the page.');
       return;
@@ -180,7 +225,7 @@ export const WebSocketProvider = ({ children }) => {
     console.log(`Scheduling reconnection attempt ${reconnectAttempts.current} in ${delay}ms`);
 
     reconnectTimeoutRef.current = setTimeout(() => {
-      if (isAuthenticated && token) {
+      if (isAuthenticated && token && !isUnmountedRef.current) {
         connectWebSocket();
       }
     }, delay);
@@ -220,7 +265,9 @@ export const WebSocketProvider = ({ children }) => {
   };
 
   const addMessage = (message) => {
-    setMessages(prev => [...prev, message]);
+    if (!isUnmountedRef.current) {
+      setMessages(prev => [...prev, message]);
+    }
   };
 
   const clearMessages = () => {

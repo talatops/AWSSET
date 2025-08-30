@@ -1,12 +1,16 @@
-# 🤖 AWS Chatbot - AI-Powered Cloud Management Platform
+# 🚀 AWSSET - AI-Powered Cloud Management Platform
 
 <div align="center">
 
-![AWS Chatbot Logo](https://img.shields.io/badge/AWS-Chatbot-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white)
-![Version](https://img.shields.io/badge/version-2.0.0-blue?style=for-the-badge)
+<!-- AWSSET Logo -->
+<img src="logo/awsset-logo-modern.svg" alt="AWSSET Logo" width="360" height="120">
+
+<br>
+
+![Version](https://img.shields.io/badge/version-2.1.0-blue?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 
-**Revolutionize your AWS management with AI-powered conversational interface**
+**Revolutionize your AWS management with AI-powered cloud mastery**
 
 [🚀 Quick Start](#-quick-start) • [📖 Features](#-features) • [🏗️ Architecture](#️-architecture) • [🔧 Configuration](#-configuration) • [📱 Usage](#-usage) • [🤝 Contributing](#-contributing)
 
@@ -16,9 +20,9 @@
 
 ## 📝 **Overview**
 
-AWS Chatbot is a comprehensive, AI-powered platform that transforms how you interact with Amazon Web Services. Say goodbye to complex console navigation and hello to natural language AWS management. With real-time WebSocket connections, intelligent cost optimization, and advanced security monitoring, this chatbot makes AWS accessible to everyone.
+AWSSET is a comprehensive, AI-powered platform that transforms how you interact with Amazon Web Services. Say goodbye to complex console navigation and hello to natural language AWS management. With real-time WebSocket connections, intelligent cost optimization, and advanced security monitoring, AWSSET makes AWS accessible to everyone.
 
-### 🎯 **Why AWS Chatbot?**
+### 🎯 **Why AWSSET?**
 
 - **🗣️ Natural Language Interface**: Manage AWS resources using plain English
 - **⚡ Real-time Updates**: Live data streaming via WebSocket connections
@@ -63,6 +67,19 @@ AWS Chatbot is a comprehensive, AI-powered platform that transforms how you inte
 - **Lambda Functions**: Serverless function deployment and monitoring
 - **RDS Databases**: Database provisioning and management
 - **IAM Security**: User, role, and policy management
+
+### 🔮 **AI-Powered Predictive Operations** *(Coming Soon)*
+- **Predictive Scaling**: AI predicts when you'll need more resources
+- **Cost Forecasting**: Machine learning predicts future spending with 95% accuracy
+- **Failure Prevention**: AI predicts potential system failures before they happen
+- **Auto-optimization**: Intelligent resource optimization based on usage patterns
+- **Performance Prediction**: Forecast resource bottlenecks and scaling needs
+
+### 💬 **Natural Language Infrastructure as Code** *(Coming Soon)*
+- **Chat-to-Infrastructure**: Generate complete Terraform/CloudFormation from chat
+- **AI Code Review**: Automated security and best practice analysis
+- **Template Translation**: Convert between CloudFormation, Terraform, and CDK
+- **Smart Customization**: AI-assisted template modification and optimization
 
 ### 📊 **Advanced Analytics**
 - **Custom Dashboards**: Personalized monitoring dashboards
@@ -128,7 +145,7 @@ AWS Chatbot is a comprehensive, AI-powered platform that transforms how you inte
 ### **1. Clone Repository**
 ```bash
 git clone <repository-url>
-cd aws-chatbot
+cd AWSSET
 ```
 
 ### **2. Environment Configuration**
@@ -614,18 +631,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📊 **Project Stats**
 
-![GitHub stars](https://img.shields.io/github/stars/username/aws-chatbot?style=social)
-![GitHub forks](https://img.shields.io/github/forks/username/aws-chatbot?style=social)
-![GitHub issues](https://img.shields.io/github/issues/username/aws-chatbot)
-![GitHub pull requests](https://img.shields.io/github/issues-pr/username/aws-chatbot)
-![GitHub last commit](https://img.shields.io/github/last-commit/username/aws-chatbot)
+![GitHub stars](https://img.shields.io/github/stars/talatops/AWSSET?style=social)
+![GitHub forks](https://img.shields.io/github/forks/talatops/AWSSET?style=social)
+![GitHub issues](https://img.shields.io/github/issues/talatops/AWSSET)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/talatops/AWSSET)
+![GitHub last commit](https://img.shields.io/github/last-commit/talatops/AWSSET)
 
 ---
 
 <div align="center">
 
-**Made with ❤️ by the AWS Chatbot Team**
-
-[⭐ Star us on GitHub](https://github.com/username/aws-chatbot) • [🐛 Report Bug](https://github.com/username/aws-chatbot/issues) • [💡 Request Feature](https://github.com/username/aws-chatbot/issues/new)
+[⭐ Star us on GitHub](https://github.com/talatops/AWSSET) • [🐛 Report Bug](https://github.com/talatops/AWSSET/issues) • [💡 Request Feature](https://github.com/talatops/AWSSET/issues/new)
 
 </div>

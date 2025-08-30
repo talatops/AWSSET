@@ -135,7 +135,7 @@ const LoginPage = () => {
           <Box textAlign="center" mb={3}>
             <SecurityIcon sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
             <Typography variant="h4" fontWeight="bold" color="primary.main">
-              AWS Chatbot
+              AWSSET
             </Typography>
             <Typography variant="body1" color="text.secondary" mt={1}>
               AI-Powered AWS Management Dashboard

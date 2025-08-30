@@ -247,7 +247,7 @@ export const AuthProvider = ({ children }) => {
         },
       });
 
-      toast.success(`Welcome to AWS Chatbot, ${user.username}!`);
+              toast.success(`Welcome to AWSSET, ${user.username}!`);
       return response.data;
     } catch (error) {
       const errorMessage = error.response?.data?.detail || 'Registration failed';

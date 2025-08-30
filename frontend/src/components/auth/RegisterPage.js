@@ -218,7 +218,7 @@ const RegisterPage = () => {
                   Create Account
                 </Typography>
                 <Typography variant="body1" color="text.secondary" mt={1}>
-                  Join AWS Chatbot for AI-powered infrastructure management
+                  Join AWSSET for AI-powered cloud management
                 </Typography>
               </Box>
             </motion.div>

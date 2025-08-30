@@ -239,10 +239,10 @@ const Dashboard = () => {
             />
           </motion.div>
           <Typography variant="h6" fontWeight="bold" color="primary">
-            AWS Chatbot
+            AWSSET
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            AI-Powered Management
+            AI-Powered Cloud Mastery
           </Typography>
         </Box>
       </motion.div>
@@ -324,7 +324,7 @@ const Dashboard = () => {
                   🖥️ Backend API: {systemStatus.backend === 'connected' ? '✅ Online' : '❌ Offline'}
                 </Typography>
                 <Typography variant="caption" display="block">
-                  🤖 AI Chatbot: {systemStatus.chatbot === 'connected' ? '✅ Ready' : '❌ Not Available'}
+                  🤖 AI Assistant: {systemStatus.chatbot === 'connected' ? '✅ Ready' : '❌ Not Available'}
                 </Typography>
                 <Typography variant="caption" display="block">
                   ☁️ AWS Integration: {systemStatus.aws === 'connected' ? '✅ Configured' : '❌ Not Configured'}

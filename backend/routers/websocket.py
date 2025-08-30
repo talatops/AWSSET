@@ -171,7 +171,7 @@ class RealTimeConnectionManager:
             backend_healthy = True  # Backend is running if we're here
             
             # Check chatbot service
-            from services.ai.gemini_service import groq_service
+            from services.ai.groq_service import groq_service
             chatbot_healthy = groq_service.is_configured
             
             # Check AWS credentials
@@ -202,22 +202,24 @@ real_time_manager = RealTimeConnectionManager()
 async def get_user_from_token(token: str, db: Session) -> User:
     """Extract user from JWT token"""
     try:
-        SECRET_KEY = config('SECRET_KEY', default='your-secret-key-here')
+        SECRET_KEY = config('JWT_SECRET_KEY', default='your-secret-key-here')
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        username: str = payload.get("sub")
-        if username is None:
+        user_id: str = payload.get("sub")
+        if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
         
         from sqlalchemy import and_
-        user = db.query(User).filter(and_(User.username == username, User.is_active == True)).first()
+        user = db.query(User).filter(and_(User.id == int(user_id), User.is_active == True)).first()
         if user is None:
             raise HTTPException(status_code=401, detail="User not found")
         
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.JWTError:
+    except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid user ID format")
 
 @router.websocket("/ws/realtime")
 async def websocket_realtime(websocket: WebSocket, token: str = None):

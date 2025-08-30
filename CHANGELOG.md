@@ -5,15 +5,52 @@ All notable changes to AWS Chatbot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2024-12-19
+
+### 🚀 Added
+- **Enhanced AI Chatbot**: Expanded from AWS-only to intelligent general conversation
+- **New Intent Categories**: Added conversation, educational, technical_support, troubleshooting
+- **Improved Context Management**: Increased conversation memory from 10 to 15 messages
+- **Better Personality**: More engaging, helpful, and versatile AI assistant
+- **Enhanced Fallback Classification**: 200+ keyword patterns for better intent detection
+- **General Topic Support**: Can now discuss programming, technology, and casual topics
+
+### ⚡ Improved
+- **Chatbot Intelligence**: More natural and helpful responses across all topics
+- **Intent Recognition**: Better understanding of user intent and context
+- **Response Quality**: Specialized handlers for different conversation types
+- **User Experience**: More engaging and conversational interactions
+
+### 🔧 Technical Improvements
+- **Enhanced Intent Classification**: 10 intent types vs previous 6
+- **Better Context Management**: Longer conversation memory and topic tracking
+- **Improved Error Handling**: More graceful fallbacks and user-friendly responses
+- **Performance Optimization**: Better WebSocket connection management
+
+### 🐛 Fixed
+- **WebSocket Connection Issues**: Fixed authentication and keepalive ping timeout problems
+- **Frontend Port Conflicts**: Resolved React dev server running on wrong port
+- **React Memory Leaks**: Fixed state update warnings on unmounted components
+- **WebSocket Disconnections**: Added proper keepalive and reconnection logic
+- **Environment Variable Issues**: Fixed WebSocket URL configuration in Docker
+
+### 🔄 Changed
+- **Chatbot Temperature**: Increased from 0.1 to 0.3 for more creative responses
+- **Intent Classification**: More generous and intelligent classification system
+- **Response Types**: Added 5 new specialized response handlers
+- **Default Behavior**: Now defaults to conversation instead of rejection
+
+---
+
 ## [Unreleased]
 
 ### 🔥 Planned Features
-- CloudTrail AI Analysis with security anomaly detection
-- Advanced cost optimization and budget management
-- Smart notification system with multi-channel alerts
-- Infrastructure deployment templates
-- Voice interface integration
-- Mobile Progressive Web App (PWA)
+- **AI-Powered Predictive Operations**: Predict scaling needs, cost spikes, and failures
+- **Natural Language Infrastructure as Code**: Generate Terraform/CloudFormation from chat
+- **Multi-Cloud Orchestration**: Manage AWS, Azure, and GCP from one dashboard
+- **DevOps Workflow Automation**: AI-powered CI/CD pipeline generation
+- **Voice & Mobile Experience**: Voice commands and mobile app
+- **Team Collaboration**: Multi-user workspaces and workflow approvals
 
 ---
 

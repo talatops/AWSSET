@@ -110,28 +110,33 @@ class GroqService:
         Classify user intent and extract AWS-related entities
         """
         try:
-            # Create the classification prompt
-            classification_prompt = f"""You are {self.bot_name}, an expert AWS cloud architect and DevOps specialist. Analyze this message and classify the intent with precision.
+            # Create the enhanced classification prompt
+            classification_prompt = f"""You are {self.bot_name}, an intelligent AI assistant with expertise in AWS, cloud computing, DevOps, programming, and general technology. Analyze this message and classify the intent thoughtfully.
 
 MESSAGE: "{message}"
 
 CONTEXT: {self._format_context(context[-2:]) if context else "No previous context"}
 
-CRITICAL CLASSIFICATION RULES:
-- ANY message containing "launch", "create", "deploy", "start" + "instance" = aws_command with action=create
-- Messages asking to "launch the instance" or "launch new instance" = aws_command (NOT question)
-- Extract EC2 instance IDs (format: i-xxxxxxxxxxxxxxxxx) from the message
-- For instance operations (start/stop/terminate), ensure instance_id is extracted
-- Only classify as "question" if asking "what", "how", "why" about AWS concepts
+CLASSIFICATION GUIDELINES:
+- Be generous with intent classification - I can handle many topics!
+- AWS commands containing "launch", "create", "deploy", "start" + "instance" = aws_command with action=create
+- Extract EC2 instance IDs (format: i-xxxxxxxxxxxxxxxxx) when present
+- Technical questions about any topic = question (not just AWS)
+- Casual conversation = conversation
+- Learning requests = educational
+- Coding/programming = technical_support
+- Troubleshooting any issue = troubleshooting
 
 Respond with JSON only:
 {{
-  "intent_type": "aws_command|question|analysis|help|greeting|other",
+  "intent_type": "aws_command|question|conversation|educational|technical_support|troubleshooting|analysis|help|greeting|other",
+  "topic_area": "aws|cloud|programming|devops|general|technology|networking|security|databases|etc",
   "aws_service": "ec2|s3|lambda|rds|iam|cloudtrail|vpc|etc|null",
-  "action": "create|list|show|get|start|stop|terminate|delete|update|describe|reboot|etc|null",
-  "entities": ["instance_types", "regions", "names", "instance_ids", "etc"],
+  "action": "create|list|show|get|start|stop|terminate|delete|update|describe|reboot|explain|discuss|learn|etc|null",
+  "entities": ["instance_types", "regions", "names", "instance_ids", "technologies", "concepts", "etc"],
   "confidence": 0.0-1.0,
   "requires_aws_action": true/false,
+  "conversation_context": "technical|casual|learning|problem_solving|exploration",
   "parameters": {{"param": "value"}}
 }}
 
@@ -174,6 +179,14 @@ JSON:"""
             return await self._handle_aws_command(message, intent_result, context)
         elif intent_type == 'question':
             return await self._handle_question(message, intent_result, context)
+        elif intent_type == 'conversation':
+            return await self._handle_conversation(message, intent_result, context)
+        elif intent_type == 'educational':
+            return await self._handle_educational(message, intent_result, context)
+        elif intent_type == 'technical_support':
+            return await self._handle_technical_support(message, intent_result, context)
+        elif intent_type == 'troubleshooting':
+            return await self._handle_troubleshooting(message, intent_result, context)
         elif intent_type == 'analysis':
             return await self._handle_analysis(message, intent_result, context)
         elif intent_type == 'greeting':
@@ -326,23 +339,162 @@ Ready to optimize your AWS infrastructure? Ask me anything! 🚀"""
             'intent_data': intent_result
         }
 
+    async def _handle_conversation(self, message: str, intent_result: Dict, context: List[Dict]) -> Dict[str, Any]:
+        """
+        Handle casual conversation
+        """
+        topic_area = intent_result.get('topic_area', 'general')
+        conversation_context = intent_result.get('conversation_context', 'casual')
+        
+        conversation_prompt = f"""You are {self.bot_name}, a friendly and knowledgeable AI assistant. The user wants to have a conversation about: "{message}"
+
+TOPIC AREA: {topic_area}
+CONVERSATION CONTEXT: {conversation_context}
+PREVIOUS CONTEXT: {self._format_context(context[-3:]) if context else "No previous context"}
+
+RESPONSE GUIDELINES:
+- Be conversational, engaging, and genuinely helpful
+- Show personality and enthusiasm
+- If it's tech-related, provide valuable insights
+- Ask follow-up questions to keep the conversation flowing
+- Be knowledgeable but not overwhelming
+- Use emojis appropriately to add warmth
+- Aim for 2-4 sentences that feel natural and engaging
+
+Remember: You're not just an AWS bot - you're a knowledgeable tech companion!"""
+        
+        ai_response = await self._call_groq(conversation_prompt)
+        
+        return {
+            'type': 'conversation',
+            'message': ai_response,
+            'topic_area': topic_area,
+            'intent_data': intent_result
+        }
+
+    async def _handle_educational(self, message: str, intent_result: Dict, context: List[Dict]) -> Dict[str, Any]:
+        """
+        Handle educational and learning requests
+        """
+        topic_area = intent_result.get('topic_area', 'technology')
+        
+        educational_prompt = f"""You are {self.bot_name}, an expert educator and technical mentor. The user wants to learn: "{message}"
+
+TOPIC AREA: {topic_area}
+CONTEXT: {self._format_context(context[-2:]) if context else "No previous context"}
+
+EDUCATIONAL APPROACH:
+- Start with a clear, concise explanation
+- Break down complex concepts into digestible parts
+- Provide practical examples and real-world applications
+- Include best practices and common pitfalls
+- Suggest next steps for deeper learning
+- Use analogies when helpful
+- Be encouraging and supportive
+
+FORMAT:
+🎓 [Main Concept/Answer]
+💡 [Key Insights/Examples]
+🚀 [Practical Applications/Next Steps]
+📚 [Additional Learning Resources/Related Topics]"""
+        
+        ai_response = await self._call_groq(educational_prompt)
+        
+        return {
+            'type': 'educational',
+            'message': ai_response,
+            'topic_area': topic_area,
+            'intent_data': intent_result
+        }
+
+    async def _handle_technical_support(self, message: str, intent_result: Dict, context: List[Dict]) -> Dict[str, Any]:
+        """
+        Handle programming and technical support requests
+        """
+        topic_area = intent_result.get('topic_area', 'programming')
+        
+        technical_prompt = f"""You are {self.bot_name}, a senior software engineer and DevOps expert. Help with this technical request: "{message}"
+
+TOPIC AREA: {topic_area}
+CONTEXT: {self._format_context(context[-2:]) if context else "No previous context"}
+
+TECHNICAL SUPPORT APPROACH:
+- Understand the specific problem or requirement
+- Provide working solutions with explanations
+- Include code examples when relevant
+- Mention potential gotchas and alternatives
+- Consider performance, security, and best practices
+- Offer debugging tips if applicable
+- Be thorough but practical
+
+FORMAT:
+🔧 [Problem Analysis]
+💻 [Solution/Code Examples]
+⚡ [Best Practices/Optimizations]
+🔍 [Debugging Tips/Alternatives]"""
+        
+        ai_response = await self._call_groq(technical_prompt)
+        
+        return {
+            'type': 'technical_support',
+            'message': ai_response,
+            'topic_area': topic_area,
+            'intent_data': intent_result
+        }
+
+    async def _handle_troubleshooting(self, message: str, intent_result: Dict, context: List[Dict]) -> Dict[str, Any]:
+        """
+        Handle troubleshooting requests
+        """
+        topic_area = intent_result.get('topic_area', 'technology')
+        
+        troubleshooting_prompt = f"""You are {self.bot_name}, an expert troubleshooter and problem solver. Help diagnose and fix: "{message}"
+
+TOPIC AREA: {topic_area}
+CONTEXT: {self._format_context(context[-2:]) if context else "No previous context"}
+
+TROUBLESHOOTING METHODOLOGY:
+- Ask clarifying questions if the problem isn't clear
+- Systematically diagnose potential causes
+- Provide step-by-step solutions
+- Start with simple fixes before complex ones
+- Include verification steps
+- Anticipate related issues
+- Be thorough and methodical
+
+FORMAT:
+🔍 [Problem Diagnosis]
+🛠️ [Step-by-Step Solution]
+✅ [Verification Steps]
+🚨 [Prevention/Related Issues to Watch]"""
+        
+        ai_response = await self._call_groq(troubleshooting_prompt)
+        
+        return {
+            'type': 'troubleshooting',
+            'message': ai_response,
+            'topic_area': topic_area,
+            'intent_data': intent_result
+        }
+
     async def _handle_general(self, message: str, intent_result: Dict, context: List[Dict]) -> Dict[str, Any]:
         """
-        Handle general conversation
+        Handle general conversation with enhanced intelligence
         """
-        general_prompt = f"""You are {self.bot_name}, an expert AWS Solutions Architect. The user said: "{message}"
+        general_prompt = f"""You are {self.bot_name}, an intelligent and versatile AI assistant. The user said: "{message}"
 
-This isn't directly AWS-related, but respond helpfully while steering toward cloud/AWS topics.
+CONTEXT: {self._format_context(context[-2:]) if context else "No previous context"}
 
-RESPONSE STYLE:
-- Acknowledge their message appropriately
-- Briefly connect it to AWS/cloud if possible
-- Offer specific AWS help
-- Stay professional but friendly
-- Keep it concise (2-3 sentences max)
+RESPONSE APPROACH:
+- Be helpful and engaging regardless of the topic
+- Show genuine interest in what they're saying
+- Provide useful information or insights when possible
+- Ask thoughtful follow-up questions
+- Be conversational and personable
+- Connect to relevant expertise when appropriate
+- Stay positive and supportive
 
-EXAMPLE: "That's interesting! While I specialize in AWS cloud architecture, I'd love to help you with your infrastructure needs. Whether it's EC2, storage solutions, or cost optimization - what AWS challenges can I assist with today?"
-"""
+You're a knowledgeable assistant who can discuss anything thoughtfully!"""
         
         ai_response = await self._call_groq(general_prompt)
         
@@ -454,7 +606,7 @@ EXAMPLE: "That's interesting! While I specialize in AWS cloud architecture, I'd 
 
     def _fallback_classification(self, message: str) -> Dict[str, Any]:
         """
-        Fallback classification using simple rules
+        Enhanced fallback classification using intelligent rules
         """
         message_lower = message.lower()
         
@@ -479,11 +631,13 @@ EXAMPLE: "That's interesting! While I specialize in AWS cloud architecture, I'd 
                 
                 return {
                     'intent_type': 'aws_command',
+                    'topic_area': 'aws',
                     'aws_service': 'ec2',
                     'action': action,
                     'entities': [],
                     'confidence': 0.85,
                     'requires_aws_action': True,
+                    'conversation_context': 'technical',
                     'parameters': {}
                 }
         
@@ -505,48 +659,128 @@ EXAMPLE: "That's interesting! While I specialize in AWS cloud architecture, I'd 
             
             return {
                 'intent_type': 'aws_command',
+                'topic_area': 'aws',
                 'aws_service': 'ec2',
                 'action': action,
                 'entities': [],
                 'confidence': 0.8,
                 'requires_aws_action': True,
+                'conversation_context': 'technical',
                 'parameters': {}
             }
         
         # Check for greetings
-        greetings = ['hello', 'hi', 'hey', 'good morning', 'good afternoon']
+        greetings = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'hey there', 'what\'s up']
         if any(greeting in message_lower for greeting in greetings):
             return {
                 'intent_type': 'greeting',
+                'topic_area': 'general',
                 'aws_service': None,
                 'action': None,
                 'entities': [],
-                'confidence': 0.7,
+                'confidence': 0.9,
                 'requires_aws_action': False,
+                'conversation_context': 'casual',
                 'parameters': {}
             }
         
         # Check for help requests
-        help_keywords = ['help', 'how', 'what can you do', 'commands']
+        help_keywords = ['help', 'what can you do', 'commands', 'how to', 'guide', 'tutorial']
         if any(keyword in message_lower for keyword in help_keywords):
             return {
                 'intent_type': 'help',
+                'topic_area': 'general',
                 'aws_service': None,
                 'action': None,
                 'entities': [],
-                'confidence': 0.7,
+                'confidence': 0.8,
                 'requires_aws_action': False,
+                'conversation_context': 'learning',
                 'parameters': {}
             }
         
-        # Default classification
+        # Check for questions (what, how, why, when, where)
+        question_indicators = ['what', 'how', 'why', 'when', 'where', 'can you', 'could you', 'explain', 'tell me']
+        if any(indicator in message_lower for indicator in question_indicators):
+            # Determine if it's educational vs general question
+            educational_keywords = ['learn', 'understand', 'explain', 'teach', 'tutorial', 'guide']
+            if any(keyword in message_lower for keyword in educational_keywords):
+                intent_type = 'educational'
+                context = 'learning'
+            else:
+                intent_type = 'question'
+                context = 'technical'
+            
+            # Determine topic area
+            topic_area = 'general'
+            if any(word in message_lower for word in ['aws', 'cloud', 'ec2', 's3', 'lambda']):
+                topic_area = 'aws'
+            elif any(word in message_lower for word in ['programming', 'code', 'python', 'javascript', 'react']):
+                topic_area = 'programming'
+            elif any(word in message_lower for word in ['server', 'network', 'deployment', 'docker']):
+                topic_area = 'devops'
+            
+            return {
+                'intent_type': intent_type,
+                'topic_area': topic_area,
+                'aws_service': None,
+                'action': 'explain',
+                'entities': [],
+                'confidence': 0.75,
+                'requires_aws_action': False,
+                'conversation_context': context,
+                'parameters': {}
+            }
+        
+        # Check for technical/programming content
+        tech_keywords = ['code', 'programming', 'develop', 'bug', 'error', 'fix', 'debug', 'api', 'function']
+        if any(keyword in message_lower for keyword in tech_keywords):
+            # Determine if it's troubleshooting vs general tech support
+            trouble_keywords = ['error', 'problem', 'issue', 'broken', 'not working', 'fix', 'debug']
+            if any(keyword in message_lower for keyword in trouble_keywords):
+                intent_type = 'troubleshooting'
+                context = 'problem_solving'
+            else:
+                intent_type = 'technical_support'
+                context = 'technical'
+            
+            return {
+                'intent_type': intent_type,
+                'topic_area': 'programming',
+                'aws_service': None,
+                'action': 'support',
+                'entities': [],
+                'confidence': 0.7,
+                'requires_aws_action': False,
+                'conversation_context': context,
+                'parameters': {}
+            }
+        
+        # Check for casual conversation indicators
+        casual_indicators = ['i think', 'i feel', 'my opinion', 'interesting', 'cool', 'awesome', 'nice']
+        if any(indicator in message_lower for indicator in casual_indicators):
+            return {
+                'intent_type': 'conversation',
+                'topic_area': 'general',
+                'aws_service': None,
+                'action': 'discuss',
+                'entities': [],
+                'confidence': 0.6,
+                'requires_aws_action': False,
+                'conversation_context': 'casual',
+                'parameters': {}
+            }
+        
+        # Enhanced default classification - be more generous
         return {
-            'intent_type': 'general',
+            'intent_type': 'conversation',  # Default to conversation instead of general
+            'topic_area': 'general',
             'aws_service': None,
-            'action': None,
+            'action': 'discuss',
             'entities': [],
             'confidence': 0.5,
             'requires_aws_action': False,
+            'conversation_context': 'casual',
             'parameters': {}
         }
 

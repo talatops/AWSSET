@@ -177,7 +177,7 @@ const UserSettings = () => {
               Settings
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Customize your AWS Chatbot experience
+              Customize your AWSSET experience
             </Typography>
           </Box>
           <Box display="flex" gap={1}>
