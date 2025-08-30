@@ -96,7 +96,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-            ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
+          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
             cd ${{ env.REMOTE_DIR }}
             echo '🔍 Verifying deployment...'
             
