@@ -277,7 +277,7 @@ const ActivityItem = ({ activity }) => {
 const Overview = () => {
   const { user } = useAuth();
   const { isDark, animations } = useTheme();
-  const { credentials, getServiceStats, checkCredentials } = useAWS();
+  const { credentials, getServiceStats, checkCredentials, hasCachedCredentials } = useAWS();
   const { connected, awsStats, requestAwsStats } = useWebSocket();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -285,52 +285,91 @@ const Overview = () => {
   const [lastUpdate, setLastUpdate] = useState(null);
 
   useEffect(() => {
-    checkCredentials();
-  }, []);
+    let isMounted = true;
+    
+    if (isMounted) {
+      // Only check credentials if not already cached
+      if (!hasCachedCredentials()) {
+        checkCredentials();
+      }
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [hasCachedCredentials, checkCredentials]);
 
   // Update data when WebSocket provides new AWS stats
   useEffect(() => {
-    if (awsStats) {
+    let isMounted = true;
+    
+    if (awsStats && isMounted) {
       console.log('🔄 Received real-time AWS stats update:', awsStats);
       const processedData = generateRealData(awsStats);
       setData(processedData);
       setLastUpdate(new Date());
       setLoading(false);
     }
+    
+    return () => {
+      isMounted = false;
+    };
   }, [awsStats]);
 
   // Fallback to HTTP if WebSocket is not connected
   useEffect(() => {
-    if (credentials?.has_credentials && !connected && !awsStats) {
-      loadRealData();
-    } else if (!credentials?.has_credentials) {
-      // If no credentials, show a basic state
-      setData(generateRealData({ services: {} }));
-      setLoading(false);
+    let isMounted = true;
+    
+    if (isMounted) {
+      if (credentials?.has_credentials && !connected && !awsStats) {
+        loadRealData();
+      } else if (!credentials?.has_credentials) {
+        // If no credentials, show a basic state
+        setData(generateRealData({ services: {} }));
+        setLoading(false);
+      }
     }
+    
+    return () => {
+      isMounted = false;
+    };
   }, [credentials, connected]);
 
   // Request real-time data when WebSocket connects
   useEffect(() => {
-    if (connected && credentials?.has_credentials) {
+    let isMounted = true;
+    
+    if (connected && credentials?.has_credentials && isMounted) {
       console.log('🔗 WebSocket connected, requesting AWS stats...');
       requestAwsStats();
     }
+    
+    return () => {
+      isMounted = false;
+    };
   }, [connected, credentials, requestAwsStats]);
 
   const loadRealData = async () => {
     try {
       setLoading(true);
       const stats = await getServiceStats();
-      const processedData = generateRealData(stats);
-      setData(processedData);
-      setLastUpdate(new Date());
+      
+      // Check if component is still mounted before updating state
+      if (document.body.contains(document.querySelector('[data-testid="overview-component"]'))) {
+        const processedData = generateRealData(stats);
+        setData(processedData);
+        setLastUpdate(new Date());
+      }
     } catch (error) {
       console.error('Failed to load AWS stats:', error);
       // Fallback to empty data
-      setData(generateRealData({ services: {} }));
+      if (document.body.contains(document.querySelector('[data-testid="overview-component"]'))) {
+        setData(generateRealData({ services: {} }));
+      }
     } finally {
-      setLoading(false);
+      if (document.body.contains(document.querySelector('[data-testid="overview-component"]'))) {
+        setLoading(false);
+      }
     }
   };
 
@@ -400,7 +439,7 @@ const Overview = () => {
   }
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 3 }} data-testid="overview-component">
       {/* Welcome Section */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}

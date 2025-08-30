@@ -48,9 +48,10 @@ import {
 import { motion } from 'framer-motion';
 import { useEC2 } from '../../hooks/useAWS';
 import { useTheme } from '../../contexts/ThemeContext';
+import { toast } from 'react-toastify';
 
 const KeyPairManagement = () => {
-  const { listKeyPairs, loading, error } = useEC2();
+  const { listKeyPairs, createKeyPair, deleteKeyPair, loading, error } = useEC2();
   const { isDark } = useTheme();
   
   const [keyPairs, setKeyPairs] = useState([]);
@@ -64,6 +65,9 @@ const KeyPairManagement = () => {
     name: '',
     type: 'rsa'
   });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [refreshLoading, setRefreshLoading] = useState(false);
 
   useEffect(() => {
     loadKeyPairs();
@@ -110,19 +114,64 @@ const KeyPairManagement = () => {
     handleMenuClose();
   };
 
-  const handleRefresh = () => {
-    loadKeyPairs();
+  const handleRefresh = async () => {
+    try {
+      setRefreshLoading(true);
+      await loadKeyPairs();
+    } finally {
+      setRefreshLoading(false);
+    }
   };
 
   const handleCreateKeyPair = () => {
     setCreateDialog(true);
   };
 
-  const handleCreateSubmit = () => {
-    // TODO: Implement key pair creation
-    console.log('Creating key pair:', newKeyPair);
-    setCreateDialog(false);
-    setNewKeyPair({ name: '', type: 'rsa' });
+  const handleCreateSubmit = async () => {
+    if (!newKeyPair.name.trim()) {
+      return;
+    }
+
+    try {
+      setCreateLoading(true);
+      
+      // Create the key pair
+      const result = await createKeyPair({
+        key_name: newKeyPair.name.trim(),
+        key_type: newKeyPair.type
+      });
+
+      if (result.success) {
+        // Close dialog and reset form
+        setCreateDialog(false);
+        setNewKeyPair({ name: '', type: 'rsa' });
+        
+        // Download the private key automatically
+        if (result.key_pair && result.key_pair.private_key) {
+          const blob = new Blob([result.key_pair.private_key], { type: 'text/plain' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${result.key_pair.key_name}-private.pem`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          
+          toast.success(`Key pair "${newKeyPair.name}" created successfully! Private key downloaded.`);
+        } else {
+          toast.success(`Key pair "${newKeyPair.name}" created successfully!`);
+        }
+        
+        // Reload key pairs to show the new one
+        await loadKeyPairs();
+      }
+    } catch (error) {
+      console.error('Failed to create key pair:', error);
+      toast.error(error.message || 'Failed to create key pair');
+    } finally {
+      setCreateLoading(false);
+    }
   };
 
   const getKeyTypeColor = (type) => {
@@ -158,11 +207,11 @@ const KeyPairManagement = () => {
         <Box display="flex" gap={2}>
           <Button
             variant="outlined"
-            startIcon={<Refresh />}
+            startIcon={refreshLoading ? <CircularProgress size={16} /> : <Refresh />}
             onClick={handleRefresh}
-            disabled={loading}
+            disabled={refreshLoading}
           >
-            Refresh
+            {refreshLoading ? 'Refreshing...' : 'Refresh'}
           </Button>
           <Button
             variant="contained"
@@ -279,7 +328,16 @@ const KeyPairManagement = () => {
                             size="small"
                             color="secondary"
                             onClick={() => {
-                              console.log('Download public key:', keyPair.key_name);
+                              // Download public key as text file
+                              const blob = new Blob([keyPair.public_key || 'Public key not available'], { type: 'text/plain' });
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `${keyPair.key_name}-public.pem`;
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              window.URL.revokeObjectURL(url);
                             }}
                           >
                             <Download />
@@ -333,14 +391,31 @@ const KeyPairManagement = () => {
         </MenuItem>
         
         <MenuItem 
-          onClick={() => {
-            console.log('Delete key pair:', selectedKeyPair?.key_name);
+          onClick={async () => {
+            try {
+              if (selectedKeyPair) {
+                setDeleteLoading(true);
+                await deleteKeyPair(selectedKeyPair.key_name);
+                await loadKeyPairs(); // Reload the list
+                toast.success(`Key pair "${selectedKeyPair.key_name}" deleted successfully!`);
+              }
+            } catch (error) {
+              console.error('Failed to delete key pair:', error);
+              toast.error(error.message || 'Failed to delete key pair');
+            } finally {
+              setDeleteLoading(false);
+            }
             handleMenuClose();
           }}
           sx={{ color: 'error.main' }}
+          disabled={deleteLoading}
         >
-          <ListItemIcon><Delete color="error" /></ListItemIcon>
-          <ListItemText>Delete</ListItemText>
+          <ListItemIcon>
+            {deleteLoading ? <CircularProgress size={16} /> : <Delete color="error" />}
+          </ListItemIcon>
+          <ListItemText>
+            {deleteLoading ? 'Deleting...' : 'Delete'}
+          </ListItemText>
         </MenuItem>
       </Menu>
 
@@ -401,7 +476,18 @@ const KeyPairManagement = () => {
             variant="outlined"
             startIcon={<Download />}
             onClick={() => {
-              console.log('Download public key:', selectedKeyPair?.key_name);
+              if (selectedKeyPair) {
+                // Download public key as text file
+                const blob = new Blob([selectedKeyPair.public_key || 'Public key not available'], { type: 'text/plain' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${selectedKeyPair.key_name}-public.pem`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+              }
               setDetailsDialog(false);
             }}
           >
@@ -465,10 +551,10 @@ const KeyPairManagement = () => {
           <Button
             variant="contained"
             onClick={handleCreateSubmit}
-            disabled={!newKeyPair.name.trim()}
-            startIcon={<CloudUpload />}
+            disabled={!newKeyPair.name.trim() || createLoading}
+            startIcon={createLoading ? <CircularProgress size={16} /> : <CloudUpload />}
           >
-            Create Key Pair
+            {createLoading ? 'Creating...' : 'Create Key Pair'}
           </Button>
         </DialogActions>
       </Dialog>

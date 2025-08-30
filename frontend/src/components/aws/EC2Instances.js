@@ -46,9 +46,13 @@ import {
   VpnKey,
   Refresh as RefreshIcon,
   FilterList,
+  Info,
+  ContentCopy,
+  CheckCircle,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useEC2 } from '../../hooks/useAWS';
+import { toast } from 'react-toastify';
 
 const EC2Instances = () => {
   const {
@@ -71,6 +75,7 @@ const EC2Instances = () => {
   const [selectedInstance, setSelectedInstance] = useState(null);
   const [createDialog, setCreateDialog] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, action: '', instance: null });
+  const [detailsDialog, setDetailsDialog] = useState(false);
   
   // Resources for instance creation
   const [securityGroups, setSecurityGroups] = useState([]);
@@ -123,6 +128,11 @@ const EC2Instances = () => {
   const handleMenuClose = () => {
     setAnchorEl(null);
     setSelectedInstance(null);
+  };
+
+  const handleViewDetails = () => {
+    setDetailsDialog(true);
+    handleMenuClose();
   };
 
   const handleAction = async (action, instance, force = false) => {
@@ -383,6 +393,23 @@ const EC2Instances = () => {
                             </Tooltip>
                           )}
 
+                          {/* Quick Connect Button for Running Instances */}
+                          {instance.state === 'running' && instance.public_ip && instance.key_name && (
+                            <Tooltip title="Copy SSH Command">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => {
+                                  const command = `ssh -i ${instance.key_name}-private.pem ec2-user@${instance.public_ip}`;
+                                  navigator.clipboard.writeText(command);
+                                  toast.success('SSH command copied to clipboard!');
+                                }}
+                              >
+                                <ContentCopy />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+
                           <IconButton
                             size="small"
                             onClick={(e) => handleMenuOpen(e, instance)}
@@ -417,6 +444,11 @@ const EC2Instances = () => {
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
       >
+        <MenuItem onClick={handleViewDetails}>
+          <ListItemIcon><Computer /></ListItemIcon>
+          <ListItemText>View Details</ListItemText>
+        </MenuItem>
+        
         {selectedInstance && canPerformAction(selectedInstance.state, 'reboot') && (
           <MenuItem onClick={() => handleAction('reboot', selectedInstance)}>
             <ListItemIcon><Refresh /></ListItemIcon>
@@ -469,6 +501,209 @@ const EC2Instances = () => {
           >
             {confirmDialog.action?.charAt(0).toUpperCase() + confirmDialog.action?.slice(1)}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Instance Details Dialog */}
+      <Dialog
+        open={detailsDialog}
+        onClose={() => setDetailsDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <Computer color="primary" />
+            Instance Details
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent>
+          {selectedInstance && (
+            <Box>
+              <Grid container spacing={3}>
+                {/* Basic Information */}
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6" gutterBottom>Basic Information</Typography>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Instance Name</Typography>
+                    <Typography variant="body1" fontWeight="medium">
+                      {selectedInstance.name || 'Unnamed'}
+                    </Typography>
+                  </Box>
+                  <Box mt={2}>
+                    <Typography variant="body2" color="text.secondary">Instance ID</Typography>
+                    <Typography variant="body1" fontFamily="monospace">
+                      {selectedInstance.instance_id}
+                    </Typography>
+                  </Box>
+                  <Box mt={2}>
+                    <Typography variant="body2" color="text.secondary">State</Typography>
+                    <Chip 
+                      label={selectedInstance.state} 
+                      color={getStateColor(selectedInstance.state)} 
+                      size="small" 
+                    />
+                  </Box>
+                  <Box mt={2}>
+                    <Typography variant="body2" color="text.secondary">Instance Type</Typography>
+                    <Typography variant="body1">{selectedInstance.instance_type}</Typography>
+                  </Box>
+                </Grid>
+
+                {/* Network Information */}
+                <Grid item xs={12} md={6}>
+                  <Typography variant="h6" gutterBottom>Network Information</Typography>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">Public IP</Typography>
+                    <Typography variant="body1" fontFamily="monospace">
+                      {selectedInstance.public_ip || 'Not assigned'}
+                    </Typography>
+                  </Box>
+                  <Box mt={2}>
+                    <Typography variant="body2" color="text.secondary">Private IP</Typography>
+                    <Typography variant="body1" fontFamily="monospace">
+                      {selectedInstance.private_ip || 'Not assigned'}
+                    </Typography>
+                  </Box>
+                  <Box mt={2}>
+                    <Typography variant="body2" color="text.secondary">Availability Zone</Typography>
+                    <Typography variant="body1">
+                      {selectedInstance.availability_zone || 'Unknown'}
+                    </Typography>
+                  </Box>
+                  <Box mt={2}>
+                    <Typography variant="body2" color="text.secondary">VPC ID</Typography>
+                    <Typography variant="body1" fontFamily="monospace">
+                      {selectedInstance.vpc_id || 'Unknown'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                {/* Connection Information */}
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom>Connection Information</Typography>
+                  
+                  {selectedInstance.public_ip && selectedInstance.key_name ? (
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        SSH Connection Command (copy and paste):
+                      </Typography>
+                      
+                      <Box 
+                        sx={{ 
+                          p: 2, 
+                          bgcolor: 'grey.100', 
+                          borderRadius: 1, 
+                          border: '1px solid',
+                          borderColor: 'grey.300',
+                          position: 'relative'
+                        }}
+                      >
+                        <Typography 
+                          variant="body1" 
+                          fontFamily="monospace" 
+                          sx={{ wordBreak: 'break-all' }}
+                        >
+                          ssh -i {selectedInstance.key_name}-private.pem ec2-user@{selectedInstance.public_ip}
+                        </Typography>
+                        
+                        <IconButton
+                          size="small"
+                          sx={{ 
+                            position: 'absolute', 
+                            top: 8, 
+                            right: 8,
+                            bgcolor: 'white'
+                          }}
+                          onClick={() => {
+                            const command = `ssh -i ${selectedInstance.key_name}-private.pem ec2-user@${selectedInstance.public_ip}`;
+                            navigator.clipboard.writeText(command);
+                            toast.success('SSH command copied to clipboard!');
+                          }}
+                        >
+                          <ContentCopy fontSize="small" />
+                        </IconButton>
+                      </Box>
+                      
+                      <Alert severity="info" sx={{ mt: 2 }}>
+                        <Typography variant="body2">
+                          <strong>Note:</strong> Make sure you have the private key file ({selectedInstance.key_name}-private.pem) 
+                          in your current directory and set proper permissions (chmod 400).
+                        </Typography>
+                      </Alert>
+                    </Box>
+                  ) : (
+                    <Alert severity="warning">
+                      <Typography variant="body2">
+                        <strong>Connection not available:</strong> This instance needs a public IP address and key pair to connect via SSH.
+                      </Typography>
+                    </Alert>
+                  )}
+
+                  {/* Additional Connection Options */}
+                  <Box mt={3}>
+                    <Typography variant="h6" gutterBottom>Alternative Connection Methods</Typography>
+                    
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="subtitle2" gutterBottom>
+                              AWS Systems Manager Session Manager
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                              Connect without SSH keys or public IP
+                            </Typography>
+                            <Button 
+                              size="small" 
+                              variant="outlined" 
+                              startIcon={<Computer />}
+                              onClick={() => {
+                                const command = `aws ssm start-session --target ${selectedInstance.instance_id}`;
+                                navigator.clipboard.writeText(command);
+                                toast.success('Session Manager command copied!');
+                              }}
+                            >
+                              Copy Command
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      
+                      <Grid item xs={12} md={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography variant="subtitle2" gutterBottom>
+                              AWS Console EC2 Instance Connect
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                              Browser-based SSH connection
+                            </Typography>
+                            <Button 
+                              size="small" 
+                              variant="outlined" 
+                              startIcon={<Computer />}
+                              onClick={() => {
+                                const url = `https://console.aws.amazon.com/ec2/v2/home?region=${selectedInstance.region || 'us-east-1'}#Instance:instanceId=${selectedInstance.instance_id}`;
+                                window.open(url, '_blank');
+                              }}
+                            >
+                              Open in Console
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        
+        <DialogActions>
+          <Button onClick={() => setDetailsDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 

@@ -84,45 +84,70 @@ class RealTimeConnectionManager:
                     'timestamp': datetime.utcnow().isoformat()
                 }, user_id)
             
-            # Send system status
+            # Send system status only if not all disconnected
             system_status = await self._get_system_status(user_id)
-            await self.send_personal_message({
-                'type': 'system_status_update',
-                'data': system_status,
-                'timestamp': datetime.utcnow().isoformat()
-            }, user_id)
+            if not all(status == 'disconnected' for status in system_status.values()):
+                await self.send_personal_message({
+                    'type': 'system_status_update',
+                    'data': system_status,
+                    'timestamp': datetime.utcnow().isoformat()
+                }, user_id)
+                logger.info(f"Sent initial system status for {user_id}: {system_status}")
+            else:
+                logger.info(f"Skipping initial system status for {user_id} - all services disconnected")
             
         except Exception as e:
             logger.error(f"Error sending initial data to {user_id}: {e}")
     
     async def _periodic_updates(self, user_id: str):
-        """Send periodic updates every 30 seconds"""
+        """Send periodic updates every 60 seconds"""
         while user_id in self.active_connections:
             try:
-                await asyncio.sleep(30)  # Update every 30 seconds
+                await asyncio.sleep(60)  # Update every 60 seconds
                 
                 if user_id not in self.active_connections:
                     break
                 
                 # Get latest AWS stats
                 aws_stats = await self._get_aws_stats(user_id)
-                if aws_stats != self.user_data[user_id]['last_aws_stats']:
+                last_stats = self.user_data[user_id]['last_aws_stats']
+                
+                # Only send update if stats actually changed
+                if (not last_stats or 
+                    aws_stats.get('success') != last_stats.get('success') or
+                    aws_stats.get('error') != last_stats.get('error')):
+                    
                     self.user_data[user_id]['last_aws_stats'] = aws_stats
                     await self.send_personal_message({
                         'type': 'aws_stats_update',
                         'data': aws_stats,
                         'timestamp': datetime.utcnow().isoformat()
                     }, user_id)
+                    logger.info(f"AWS stats changed for {user_id}")
+                else:
+                    logger.debug(f"No AWS stats change for {user_id}")
                 
                 # Get latest system status
                 system_status = await self._get_system_status(user_id)
-                if system_status != self.user_data[user_id]['last_system_status']:
+                last_status = self.user_data[user_id]['last_system_status']
+                
+                # Only send update if status actually changed
+                if (not last_status or 
+                    system_status['backend'] != last_status.get('backend') or
+                    system_status['chatbot'] != last_status.get('chatbot') or
+                    system_status['aws'] != last_status.get('aws')):
+                    
                     self.user_data[user_id]['last_system_status'] = system_status
+                    
+                    # Send system status update
                     await self.send_personal_message({
                         'type': 'system_status_update',
                         'data': system_status,
                         'timestamp': datetime.utcnow().isoformat()
                     }, user_id)
+                    logger.info(f"System status changed for {user_id}: {system_status}")
+                else:
+                    logger.debug(f"No system status change for {user_id}, skipping update")
                 
             except asyncio.CancelledError:
                 break
@@ -170,23 +195,59 @@ class RealTimeConnectionManager:
             # Check backend health
             backend_healthy = True  # Backend is running if we're here
             
-            # Check chatbot service
-            from services.ai.groq_service import groq_service
-            chatbot_healthy = groq_service.is_configured
+            # Debug: Check environment variables
+            from decouple import config
+            groq_key = config('GROQ_API_KEY', default='NOT_FOUND')
+            logger.info(f"Environment GROQ_API_KEY check: {'found' if groq_key and groq_key != 'NOT_FOUND' else 'not found'}")
+            logger.info(f"GROQ_API_KEY length: {len(groq_key) if groq_key and groq_key != 'NOT_FOUND' else 0}")
+            
+            # Check chatbot service - Dynamic check instead of relying on module-level state
+            try:
+                from services.ai.gemini_service import GroqService
+                
+                # Create a fresh instance to check current configuration
+                temp_service = GroqService()
+                chatbot_healthy = temp_service.is_configured
+                
+                # Debug: Check the actual API key value
+                api_key = temp_service.api_key if hasattr(temp_service, 'api_key') else 'N/A'
+                api_key_status = 'configured' if api_key and api_key != 'your_groq_api_key_here' else 'not configured'
+                
+                logger.info(f"Chatbot service check: {'configured' if chatbot_healthy else 'not configured'}")
+                logger.info(f"API key status: {api_key_status}")
+                logger.info(f"API key length: {len(api_key) if api_key and api_key != 'NOT_FOUND' else 0}")
+                
+            except ImportError as e:
+                # Fallback if service not available
+                logger.error(f"Failed to import chatbot service: {e}")
+                chatbot_healthy = False
+            except Exception as e:
+                logger.error(f"Error checking chatbot service: {e}")
+                chatbot_healthy = False
             
             # Check AWS credentials
             user_data = self.user_data.get(user_id)
             aws_healthy = False
             if user_data:
-                credential_manager = AWSCredentialManager()
-                credentials = credential_manager.get_credentials(user_data['db'], user_data['user'].id)
-                aws_healthy = credentials is not None
+                try:
+                    credential_manager = AWSCredentialManager()
+                    credentials = credential_manager.get_credentials(user_data['db'], user_data['user'].id)
+                    aws_healthy = credentials is not None
+                    logger.info(f"AWS credentials check for {user_id}: {'found' if aws_healthy else 'not found'}")
+                except Exception as e:
+                    logger.error(f"Error checking AWS credentials for {user_id}: {e}")
+                    aws_healthy = False
+            else:
+                logger.warning(f"No user data found for {user_id}")
             
-            return {
+            status = {
                 'backend': 'connected' if backend_healthy else 'disconnected',
                 'chatbot': 'connected' if chatbot_healthy else 'disconnected',
                 'aws': 'connected' if aws_healthy else 'disconnected'
             }
+            
+            logger.info(f"System status for {user_id}: {status}")
+            return status
             
         except Exception as e:
             logger.error(f"Error getting system status: {e}")

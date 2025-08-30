@@ -360,6 +360,69 @@ async def list_key_pairs(
             detail="An error occurred while listing key pairs"
         )
 
+@router.post("/key-pairs")
+async def create_key_pair(
+    key_pair_data: dict,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new EC2 key pair
+    """
+    try:
+        ec2_service = EC2Service(db, current_user.id)
+        result = ec2_service.create_key_pair(
+            key_name=key_pair_data.get('key_name'),
+            key_type=key_pair_data.get('key_type', 'rsa')
+        )
+        
+        if result['success']:
+            return result
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.get('error_message', 'Failed to create key pair')
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating key pair for user {current_user.id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while creating key pair"
+        )
+
+@router.delete("/key-pairs/{key_name}")
+async def delete_key_pair(
+    key_name: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete an EC2 key pair
+    """
+    try:
+        ec2_service = EC2Service(db, current_user.id)
+        result = ec2_service.delete_key_pair(key_name)
+        
+        if result['success']:
+            return result
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.get('error_message', 'Failed to delete key pair')
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting key pair for user {current_user.id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while deleting key pair"
+        )
+
 # =========================================================================
 # AMIS
 # =========================================================================

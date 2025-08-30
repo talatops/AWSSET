@@ -359,6 +359,90 @@ class EC2Service(AWSBaseClient):
             
         except Exception as e:
             return self._handle_aws_error(e, "list_key_pairs")
+
+    def create_key_pair(self, key_name: str, key_type: str = 'rsa') -> Dict[str, Any]:
+        """Create a new EC2 key pair"""
+        try:
+            # Validate key name
+            if not key_name or len(key_name) < 3:
+                return {
+                    "success": False,
+                    "error_message": "Key pair name must be at least 3 characters long"
+                }
+            
+            # Check if key pair already exists
+            try:
+                existing = self.client.describe_key_pairs(KeyNames=[key_name])
+                if existing['KeyPairs']:
+                    return {
+                        "success": False,
+                        "error_message": f"Key pair '{key_name}' already exists"
+                    }
+            except ClientError as e:
+                if e.response['Error']['Code'] != 'InvalidKeyPair.NotFound':
+                    raise e
+            
+            # Create key pair
+            response = self.client.create_key_pair(
+                KeyName=key_name,
+                KeyType=key_type
+            )
+            
+            # Format the response
+            key_pair_data = {
+                "key_name": response['KeyName'],
+                "key_fingerprint": response['KeyFingerprint'],
+                "key_type": response.get('KeyType', 'rsa'),
+                "private_key": response.get('KeyMaterial', ''),
+                "public_key": response.get('PublicKeyMaterial', '')
+            }
+            
+            result = {
+                "success": True,
+                "key_pair": key_pair_data,
+                "message": f"Key pair '{key_name}' created successfully",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            self._log_operation("create_key_pair", {"key_name": key_name, "key_type": key_type})
+            return result
+            
+        except Exception as e:
+            return self._handle_aws_error(e, "create_key_pair", {"key_name": key_name, "key_type": key_type})
+
+    def delete_key_pair(self, key_name: str) -> Dict[str, Any]:
+        """Delete an EC2 key pair"""
+        try:
+            # Check if key pair exists
+            try:
+                existing = self.client.describe_key_pairs(KeyNames=[key_name])
+                if not existing['KeyPairs']:
+                    return {
+                        "success": False,
+                        "error_message": f"Key pair '{key_name}' not found"
+                    }
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'InvalidKeyPair.NotFound':
+                    return {
+                        "success": False,
+                        "error_message": f"Key pair '{key_name}' not found"
+                    }
+                raise e
+            
+            # Delete key pair
+            self.client.delete_key_pair(KeyName=key_name)
+            
+            result = {
+                "success": True,
+                "message": f"Key pair '{key_name}' deleted successfully",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            self._log_operation("delete_key_pair", {"key_name": key_name})
+            return result
+            
+        except Exception as e:
+            return self._handle_aws_error(e, "delete_key_pair", {"key_name": key_name})
     
     # =========================================================================
     # AMIS & IMAGES

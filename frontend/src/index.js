@@ -14,7 +14,12 @@ import './index.css';
 ReactDOM.render(
   // Temporarily disable StrictMode to prevent duplicate OAuth calls in development
   // <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
       <CustomThemeProvider>
         <AuthProvider>
           <WebSocketProvider>

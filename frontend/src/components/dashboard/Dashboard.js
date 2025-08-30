@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   AppBar,
@@ -38,6 +38,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useWebSocket } from '../../contexts/WebSocketContext';
+import notificationService from '../../services/notificationService';
 
 // Dashboard components
 import Overview from './Overview';
@@ -58,7 +59,7 @@ const Dashboard = () => {
   
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [notificationCount] = useState(3); // Mock notifications
+  const [notificationCount, setNotificationCount] = useState(0);
   const [systemStatus, setSystemStatus] = useState({
     chatbot: 'checking',
     aws: 'checking',
@@ -70,37 +71,82 @@ const Dashboard = () => {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  // Use WebSocket system status when available
+  // Listen to notification changes
   useEffect(() => {
-    if (wsSystemStatus) {
-      console.log('🔧 Updating system status from WebSocket:', wsSystemStatus);
-      setSystemStatus(wsSystemStatus);
+    let isMounted = true;
+    
+    const unsubscribe = notificationService.addListener((notifications, unreadCount) => {
+      if (isMounted) {
+        setNotificationCount(unreadCount);
+      }
+    });
+    
+    // Set initial notification count
+    if (isMounted) {
+      setNotificationCount(notificationService.getUnreadCount());
     }
-  }, [wsSystemStatus]);
+    
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  // Memoize system status to prevent unnecessary re-renders
+  const memoizedSystemStatus = useMemo(() => systemStatus, [systemStatus]);
+
+  // Use WebSocket system status when available - only update if there are actual changes
+  useEffect(() => {
+    let isMounted = true;
+    
+    if (wsSystemStatus && JSON.stringify(wsSystemStatus) !== JSON.stringify(memoizedSystemStatus)) {
+      console.log('🔧 Updating system status from WebSocket:', wsSystemStatus);
+      if (isMounted) {
+        setSystemStatus(wsSystemStatus);
+      }
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [wsSystemStatus, memoizedSystemStatus]);
 
   useEffect(() => {
+    let isMounted = true;
+    
     // Check system status on component mount
-    if (connected) {
+    if (connected && isMounted) {
       // Use WebSocket to get system status
       requestSystemStatus();
-    } else {
+    } else if (isMounted) {
       // Fallback to HTTP check
       checkSystemStatus();
     }
     
-    // Set up periodic status checks every 30 seconds (only if WebSocket not connected)
+    // Set up periodic status checks every 120 seconds (only if WebSocket not connected)
     const statusInterval = setInterval(() => {
+      if (!isMounted) return;
+      
+      // Skip status checks if user is on Settings page to prevent blinking
+      if (location.pathname.includes('/settings')) {
+        console.log('🔧 Skipping status check - user on Settings page');
+        return;
+      }
+      
       if (connected) {
         requestSystemStatus();
       } else {
         checkSystemStatus();
       }
-    }, 30000);
+    }, 120000);
     
-    return () => clearInterval(statusInterval);
-  }, [connected, requestSystemStatus]);
+    return () => {
+      isMounted = false;
+      clearInterval(statusInterval);
+    };
+  }, [connected, requestSystemStatus, location.pathname]);
 
-  const checkSystemStatus = async () => {
+  const checkSystemStatus = useCallback(async () => {
     try {
       // Check backend API health
       const backendResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/health`);
@@ -120,31 +166,61 @@ const Dashboard = () => {
       const awsData = awsResponse.ok ? await awsResponse.json() : null;
       const awsHealthy = awsData?.has_credentials;
       
-      setSystemStatus({
-        backend: backendHealthy ? 'connected' : 'disconnected',
-        chatbot: chatbotHealthy ? 'connected' : 'disconnected',
-        aws: awsHealthy ? 'connected' : 'disconnected'
+      // Use a ref to track if component is still mounted
+      const isMountedRef = { current: true };
+      
+      setSystemStatus(prevStatus => {
+        // Check if component is still mounted before updating
+        if (!isMountedRef.current) {
+          return prevStatus;
+        }
+        
+        const newStatus = {
+          backend: backendHealthy ? 'connected' : 'disconnected',
+          chatbot: chatbotHealthy ? 'connected' : 'disconnected',
+          aws: awsHealthy ? 'connected' : 'disconnected'
+        };
+        
+        // Only update if there are actual changes
+        if (JSON.stringify(prevStatus) !== JSON.stringify(newStatus)) {
+          return newStatus;
+        }
+        return prevStatus;
       });
+      
+      // Return cleanup function
+      return () => {
+        isMountedRef.current = false;
+      };
       
     } catch (error) {
       console.error('System status check failed:', error);
-      setSystemStatus({
-        backend: 'disconnected',
-        chatbot: 'disconnected', 
-        aws: 'disconnected'
+      
+      setSystemStatus(prevStatus => {
+        const newStatus = {
+          backend: 'disconnected',
+          chatbot: 'disconnected', 
+          aws: 'disconnected'
+        };
+        
+        // Only update if there are actual changes
+        if (JSON.stringify(prevStatus) !== JSON.stringify(newStatus)) {
+          return newStatus;
+        }
+        return prevStatus;
       });
     }
-  };
+  }, [token]);
 
-  const getOverallStatus = () => {
-    const statuses = Object.values(systemStatus);
+  const getOverallStatus = useCallback(() => {
+    const statuses = Object.values(memoizedSystemStatus);
     if (statuses.includes('checking')) return 'checking';
     if (statuses.every(status => status === 'connected')) return 'connected';
     if (statuses.every(status => status === 'disconnected')) return 'disconnected';
     return 'partial';
-  };
+  }, [memoizedSystemStatus]);
 
-  const getStatusColor = (status) => {
+  const getStatusColor = useCallback((status) => {
     switch (status) {
       case 'connected': return 'success';
       case 'disconnected': return 'error';
@@ -152,9 +228,9 @@ const Dashboard = () => {
       case 'checking': return 'info';
       default: return 'default';
     }
-  };
+  }, []);
 
-  const getStatusLabel = (status) => {
+  const getStatusLabel = useCallback((status) => {
     switch (status) {
       case 'connected': return 'All Systems Online';
       case 'disconnected': return 'Systems Offline';
@@ -162,7 +238,7 @@ const Dashboard = () => {
       case 'checking': return 'Checking Status...';
       default: return 'Unknown Status';
     }
-  };
+  }, []);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -24,6 +24,13 @@ import {
   ListItemIcon,
   ListItemText,
   ListItemSecondaryAction,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Snackbar,
+  CircularProgress,
+  Tooltip,
 } from '@mui/material';
 import {
   Edit,
@@ -42,11 +49,19 @@ import {
   Storage,
   VolumeUp,
   Visibility,
+  Download,
+  Refresh,
+  Settings,
+  NotificationsActive,
+  NotificationsOff,
+  BugReport,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { toast } from 'react-toastify';
+import notificationService from '../../services/notificationService';
+import dataExportService from '../../services/dataExportService';
 
 const UserSettings = () => {
   const { user, updateUserProfile } = useAuth();
@@ -81,6 +96,35 @@ const UserSettings = () => {
     analyticsOptIn: false,
   });
 
+  const [notificationPermission, setNotificationPermission] = useState('default');
+  const [isExporting, setIsExporting] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showTestNotification, setShowTestNotification] = useState(false);
+
+  // Load saved preferences on component mount
+  useEffect(() => {
+    let isMounted = true;
+    
+    if (isMounted) {
+      const savedPreferences = notificationService.getUserPreferences();
+      setPreferences(prev => ({ ...prev, ...savedPreferences }));
+      
+      // Check notification permission (don't request, just check current status)
+      if ('Notification' in window) {
+        setNotificationPermission(Notification.permission);
+      }
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Save preferences whenever they change
+  useEffect(() => {
+    notificationService.saveUserPreferences(preferences);
+  }, [preferences]);
+
   const accentColors = [
     { name: 'Blue', value: 'blue', color: '#1976D2' },
     { name: 'Purple', value: 'purple', color: '#7B1FA2' },
@@ -98,12 +142,39 @@ const UserSettings = () => {
     { value: 'ap-northeast-1', label: 'Asia Pacific (Tokyo)' },
   ];
 
+  const languages = [
+    { value: 'en', label: 'English' },
+    { value: 'es', label: 'Español' },
+    { value: 'fr', label: 'Français' },
+    { value: 'de', label: 'Deutsch' },
+    { value: 'zh', label: '中文' },
+    { value: 'ja', label: '日本語' },
+  ];
+
+  const timezones = [
+    { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+    { value: 'America/New_York', label: 'Eastern Time (ET)' },
+    { value: 'America/Chicago', label: 'Central Time (CT)' },
+    { value: 'America/Denver', label: 'Mountain Time (MT)' },
+    { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+    { value: 'Europe/London', label: 'London (GMT)' },
+    { value: 'Europe/Paris', label: 'Paris (CET)' },
+    { value: 'Asia/Tokyo', label: 'Tokyo (JST)' },
+    { value: 'Asia/Shanghai', label: 'Shanghai (CST)' },
+    { value: 'Australia/Sydney', label: 'Sydney (AEST)' },
+  ];
+
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handlePreferenceChange = (field, value) => {
     setPreferences(prev => ({ ...prev, [field]: value }));
+    
+    // Special handling for notifications - only request permission when user explicitly enables
+    if (field === 'notifications' && value === true && notificationPermission === 'default') {
+      // Don't auto-request - let user click the button
+    }
   };
 
   const handleSave = async () => {
@@ -111,7 +182,7 @@ const UserSettings = () => {
       // Prepare the update data
       const updateData = {
         username: formData.username !== user?.username ? formData.username : undefined,
-        full_name: formData.fullName !== user?.full_name ? formData.fullName : undefined,
+        full_name: formData.fullName !== user?.fullName ? formData.fullName : undefined,
         aws_region: formData.awsRegion !== user?.aws_region ? formData.awsRegion : undefined,
       };
 
@@ -141,6 +212,87 @@ const UserSettings = () => {
       awsRegion: user?.aws_region || 'us-east-1',
     });
     setEditing(false);
+  };
+
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      // Collect user data for export
+      const userData = {
+        awsResources: {
+          // This would come from your AWS service calls
+          ec2: { instances: [] },
+          s3: { buckets: [] },
+          lambda: { functions: [] }
+        },
+        settings: preferences,
+        chatHistory: [] // This would come from your chat service
+      };
+
+      const result = await dataExportService.exportUserData(user, userData);
+      
+      if (result.success) {
+        toast.success(`Data exported successfully as ${result.filename}`);
+      } else {
+        toast.error(`Export failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export data');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleResetSettings = () => {
+    setPreferences({
+      notifications: true,
+      emailAlerts: true,
+      soundEnabled: true,
+      autoRefresh: true,
+      refreshInterval: 30,
+      language: 'en',
+      timezone: 'UTC',
+      chatHistory: true,
+      analyticsOptIn: false,
+    });
+    
+    // Reset theme settings
+    setAnimations(true);
+    setCompactMode(false);
+    
+    toast.success('Settings reset to defaults');
+    setShowResetDialog(false);
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      const result = await notificationService.testNotification();
+      if (result) {
+        toast.success('Test notification sent successfully!');
+      } else {
+        toast.warning('Test notification could not be sent. Check your browser permissions.');
+      }
+    } catch (error) {
+      console.error('Test notification error:', error);
+      toast.error('Failed to send test notification');
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    try {
+      const granted = await notificationService.requestPermission();
+      if (granted) {
+        setNotificationPermission('granted');
+        toast.success('Notification permission granted!');
+      } else {
+        setNotificationPermission('denied');
+        toast.warning('Notification permission denied. You can enable it in your browser settings.');
+      }
+    } catch (error) {
+      console.error('Permission request error:', error);
+      toast.error('Failed to request notification permission');
+    }
   };
 
   const SettingCard = ({ title, children, icon, delay = 0 }) => (
@@ -406,6 +558,33 @@ const UserSettings = () => {
         icon={<Notifications color="primary" />}
         delay={0.3}
       >
+        <Box sx={{ mb: 2 }}>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              Current notification permission: <strong>{notificationPermission.toUpperCase()}</strong>
+            </Typography>
+          </Alert>
+          
+          {notificationPermission === 'default' && (
+            <Button
+              variant="outlined"
+              startIcon={<NotificationsActive />}
+              onClick={requestNotificationPermission}
+              sx={{ mb: 2 }}
+            >
+              Enable Push Notifications
+            </Button>
+          )}
+          
+          {notificationPermission === 'denied' && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                Notifications are blocked. Please enable them in your browser settings and refresh the page.
+              </Typography>
+            </Alert>
+          )}
+        </Box>
+
         <List>
           <ListItem>
             <ListItemIcon>
@@ -419,6 +598,7 @@ const UserSettings = () => {
               <Switch
                 checked={preferences.notifications}
                 onChange={(e) => handlePreferenceChange('notifications', e.target.checked)}
+                disabled={notificationPermission === 'denied'}
               />
             </ListItemSecondaryAction>
           </ListItem>
@@ -476,6 +656,17 @@ const UserSettings = () => {
             />
           </Box>
         )}
+
+        <Box sx={{ mt: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<BugReport />}
+            onClick={handleTestNotification}
+            disabled={!preferences.notifications || notificationPermission === 'denied'}
+          >
+            Test Notification
+          </Button>
+        </Box>
       </SettingCard>
 
       {/* Privacy & Security */}
@@ -540,10 +731,11 @@ const UserSettings = () => {
                 onChange={(e) => handlePreferenceChange('language', e.target.value)}
                 label="Language"
               >
-                <MenuItem value="en">English</MenuItem>
-                <MenuItem value="es">Español</MenuItem>
-                <MenuItem value="fr">Français</MenuItem>
-                <MenuItem value="de">Deutsch</MenuItem>
+                {languages.map((lang) => (
+                  <MenuItem key={lang.value} value={lang.value}>
+                    {lang.label}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>
@@ -556,25 +748,53 @@ const UserSettings = () => {
                 onChange={(e) => handlePreferenceChange('timezone', e.target.value)}
                 label="Timezone"
               >
-                <MenuItem value="UTC">UTC</MenuItem>
-                <MenuItem value="America/New_York">Eastern Time</MenuItem>
-                <MenuItem value="America/Los_Angeles">Pacific Time</MenuItem>
-                <MenuItem value="Europe/London">London</MenuItem>
-                <MenuItem value="Asia/Tokyo">Tokyo</MenuItem>
+                {timezones.map((tz) => (
+                  <MenuItem key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>
         </Grid>
 
         <Box display="flex" gap={2} mt={3}>
-          <Button variant="outlined" color="warning">
-            Export Data
+          <Button 
+            variant="outlined" 
+            color="warning"
+            startIcon={isExporting ? <CircularProgress size={16} /> : <Download />}
+            onClick={handleExportData}
+            disabled={isExporting}
+          >
+            {isExporting ? 'Exporting...' : 'Export Data'}
           </Button>
-          <Button variant="outlined" color="error">
+          <Button 
+            variant="outlined" 
+            color="error"
+            startIcon={<Refresh />}
+            onClick={() => setShowResetDialog(true)}
+          >
             Reset Settings
           </Button>
         </Box>
       </SettingCard>
+
+      {/* Reset Settings Dialog */}
+      <Dialog open={showResetDialog} onClose={() => setShowResetDialog(false)}>
+        <DialogTitle>Reset All Settings?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            This will reset all your preferences, theme settings, and notification preferences to their default values. 
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowResetDialog(false)}>Cancel</Button>
+          <Button onClick={handleResetSettings} color="error" variant="contained">
+            Reset All Settings
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

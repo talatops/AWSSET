@@ -1,22 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
+import credentialCacheService from '../services/credentialCacheService';
 
 export const useAWS = () => {
   const { api } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [credentials, setCredentials] = useState(null);
+  const [isMounted, setIsMounted] = useState(true);
 
   // Check AWS credentials status
   const checkCredentials = async () => {
     try {
-      const response = await api.get('/api/aws/credentials');
-      setCredentials(response.data);
-      return response.data;
+      // Use cache service to prevent repeated API calls
+      const credentialsData = await credentialCacheService.getCredentials(api);
+      
+      if (isMounted) {
+        setCredentials(credentialsData);
+      }
+      
+      return credentialsData;
     } catch (error) {
       console.error('Failed to check AWS credentials:', error);
-      setCredentials(null);
+      
+      if (isMounted) {
+        setCredentials(null);
+      }
+      
       return null;
     }
   };
@@ -24,13 +35,15 @@ export const useAWS = () => {
   // Store AWS credentials
   const storeCredentials = async (credentialsData) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (isMounted) setLoading(true);
+      if (isMounted) setError(null);
       
       const response = await api.post('/api/aws/credentials', credentialsData);
       
       if (response.data.success) {
-        setCredentials(response.data);
+        if (isMounted) setCredentials(response.data);
+        // Update the global cache
+        credentialCacheService.updateCredentials(response.data);
         toast.success('AWS credentials stored successfully!');
         return response.data;
       } else {
@@ -38,35 +51,35 @@ export const useAWS = () => {
       }
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.message;
-      setError(errorMessage);
+      if (isMounted) setError(errorMessage);
       toast.error(errorMessage);
       throw error;
     } finally {
-      setLoading(false);
+      if (isMounted) setLoading(false);
     }
   };
 
   // Validate AWS credentials
   const validateCredentials = async (credentialsData) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (isMounted) setLoading(true);
+      if (isMounted) setError(null);
       
       const response = await api.post('/api/aws/validate', credentialsData);
       return response.data;
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.message;
-      setError(errorMessage);
+      if (isMounted) setError(errorMessage);
       throw error;
     } finally {
-      setLoading(false);
+      if (isMounted) setLoading(false);
     }
   };
 
   // Test AWS permissions
   const testPermissions = async (service = 'ec2', credentialsData = null) => {
     try {
-      setLoading(true);
+      if (isMounted) setLoading(true);
       
       // If credentials are provided, send them in the request body
       // Otherwise, the backend will use stored credentials
@@ -76,27 +89,29 @@ export const useAWS = () => {
       return response.data;
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.message;
-      setError(errorMessage);
+      if (isMounted) setError(errorMessage);
       throw error;
     } finally {
-      setLoading(false);
+      if (isMounted) setLoading(false);
     }
   };
 
   // Remove AWS credentials
   const removeCredentials = async () => {
     try {
-      setLoading(true);
+      if (isMounted) setLoading(true);
       await api.delete('/api/aws/credentials');
-      setCredentials(null);
+      if (isMounted) setCredentials(null);
+      // Clear the global cache
+      credentialCacheService.clearCredentials();
       toast.success('AWS credentials removed successfully!');
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.message;
-      setError(errorMessage);
+      if (isMounted) setError(errorMessage);
       toast.error(errorMessage);
       throw error;
     } finally {
-      setLoading(false);
+      if (isMounted) setLoading(false);
     }
   };
 
@@ -114,22 +129,44 @@ export const useAWS = () => {
   // Get AWS service statistics
   const getServiceStats = async () => {
     try {
-      setLoading(true);
-      setError(null);
+      if (isMounted) setLoading(true);
+      if (isMounted) setError(null);
       const response = await api.get('/api/aws/stats');
       return response.data;
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.message;
-      setError(errorMessage);
+      if (isMounted) setError(errorMessage);
       throw error;
     } finally {
-      setLoading(false);
+      if (isMounted) setError(null);
+      if (isMounted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    checkCredentials();
-  }, []);
+    setIsMounted(true);
+    
+    const initCredentials = async () => {
+      try {
+        // Use cache service for initial loading
+        const credentialsData = await credentialCacheService.getCredentials(api);
+        if (isMounted) {
+          setCredentials(credentialsData);
+        }
+      } catch (error) {
+        console.error('Failed to check AWS credentials:', error);
+        if (isMounted) {
+          setCredentials(null);
+        }
+      }
+    };
+    
+    initCredentials();
+    
+    return () => {
+      setIsMounted(false);
+    };
+  }, [api]);
 
   return {
     loading,
@@ -142,6 +179,9 @@ export const useAWS = () => {
     removeCredentials,
     getRegions,
     getServiceStats,
+    // Add cache management functions
+    refreshCredentials: () => credentialCacheService.refreshCredentials(api),
+    hasCachedCredentials: () => credentialCacheService.hasValidCache(),
   };
 };
 
@@ -149,21 +189,29 @@ export const useEC2 = () => {
   const { api } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isMounted, setIsMounted] = useState(true);
 
   const handleRequest = async (requestFn) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (isMounted) setLoading(true);
+      if (isMounted) setError(null);
       return await requestFn();
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.message;
-      setError(errorMessage);
+      if (isMounted) setError(errorMessage);
       toast.error(errorMessage);
       throw error;
     } finally {
-      setLoading(false);
+      if (isMounted) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      setIsMounted(false);
+    };
+  }, []);
 
   // Instance operations
   const listInstances = async (filters = {}) => {
@@ -239,6 +287,22 @@ export const useEC2 = () => {
     });
   };
 
+  const createKeyPair = async (keyPairConfig) => {
+    return handleRequest(async () => {
+      const response = await api.post('/api/aws/ec2/key-pairs', keyPairConfig);
+      toast.success('Key pair created successfully!');
+      return response.data;
+    });
+  };
+
+  const deleteKeyPair = async (keyPairName) => {
+    return handleRequest(async () => {
+      const response = await api.delete(`/api/aws/ec2/key-pairs/${keyPairName}`);
+      toast.success('Key pair deleted successfully!');
+      return response.data;
+    });
+  };
+
   const listAMIs = async (filters = {}) => {
     return handleRequest(async () => {
       const params = new URLSearchParams();
@@ -263,6 +327,8 @@ export const useEC2 = () => {
     terminateInstance,
     listSecurityGroups,
     listKeyPairs,
+    createKeyPair,
+    deleteKeyPair,
     listAMIs,
   };
 };

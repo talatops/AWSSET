@@ -16,6 +16,7 @@ export const WebSocketProvider = ({ children }) => {
   const reconnectAttempts = useRef(0);
   const pingIntervalRef = useRef(null);
   const isUnmountedRef = useRef(false);
+  const systemStatusUpdateTimeoutRef = useRef(null);
   const maxReconnectAttempts = 5;
 
   const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_URL || 'ws://localhost:8000/ws/realtime';
@@ -31,7 +32,7 @@ export const WebSocketProvider = ({ children }) => {
 
     return () => {
       isUnmountedRef.current = true;
-      disconnectWebSocket();
+      cleanup();
     };
   }, [isAuthenticated, token]);
 
@@ -100,11 +101,24 @@ export const WebSocketProvider = ({ children }) => {
     }
   };
 
+  // Check if user is on Settings page to prevent unnecessary updates
+  const isOnSettingsPage = () => {
+    return window.location.pathname.includes('/settings') || 
+           window.location.pathname.includes('/dashboard/settings');
+  };
+
   const handleWebSocketMessage = (data) => {
     console.log('📨 Received WebSocket message:', data);
     
     // Check if component is still mounted before updating state
     if (isUnmountedRef.current) {
+      console.log('📨 Component unmounted, skipping message processing');
+      return;
+    }
+    
+    // Skip system status updates if user is on Settings page to prevent blinking
+    if (data.type === 'system_status_update' && isOnSettingsPage()) {
+      console.log('🔧 Skipping system status update - user on Settings page');
       return;
     }
     
@@ -116,7 +130,21 @@ export const WebSocketProvider = ({ children }) => {
         
       case 'system_status_update':
         console.log('🔧 Updating system status:', data.data);
-        setSystemStatus(data.data);
+        // Debounce system status updates to prevent rapid re-renders
+        if (systemStatusUpdateTimeoutRef.current) {
+          clearTimeout(systemStatusUpdateTimeoutRef.current);
+        }
+        systemStatusUpdateTimeoutRef.current = setTimeout(() => {
+          // Only update if the status actually changed
+          setSystemStatus(prevStatus => {
+            if (JSON.stringify(prevStatus) === JSON.stringify(data.data)) {
+              console.log('🔧 System status unchanged, skipping update');
+              return prevStatus;
+            }
+            console.log('🔧 System status changed, updating');
+            return data.data;
+          });
+        }, 1000); // Wait 1 second before updating
         break;
         
       case 'notification':
@@ -169,6 +197,12 @@ export const WebSocketProvider = ({ children }) => {
   const disconnectWebSocket = () => {
     stopPingInterval();
     
+    // Clear any pending system status updates
+    if (systemStatusUpdateTimeoutRef.current) {
+      clearTimeout(systemStatusUpdateTimeoutRef.current);
+      systemStatusUpdateTimeoutRef.current = null;
+    }
+    
     if (socket) {
       socket.close();
       if (!isUnmountedRef.current) {
@@ -180,6 +214,25 @@ export const WebSocketProvider = ({ children }) => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
+    }
+  };
+
+  // Enhanced cleanup function
+  const cleanup = () => {
+    stopPingInterval();
+    
+    if (systemStatusUpdateTimeoutRef.current) {
+      clearTimeout(systemStatusUpdateTimeoutRef.current);
+      systemStatusUpdateTimeoutRef.current = null;
+    }
+    
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    
+    if (socket) {
+      socket.close();
     }
   };
 
@@ -195,7 +248,7 @@ export const WebSocketProvider = ({ children }) => {
           console.error('Failed to send ping:', error);
         }
       }
-    }, 30000); // Send ping every 30 seconds
+    }, 120000); // Send ping every 120 seconds (reduced frequency to match backend)
   };
 
   const stopPingInterval = () => {

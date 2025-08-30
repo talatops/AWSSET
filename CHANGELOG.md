@@ -5,6 +5,27 @@ All notable changes to AWS Chatbot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2024-12-19
+
+### 🚀 Added
+- **EC2 Instance Details Dialog**: Comprehensive instance information display with connection details
+- **One-Click SSH Command Copy**: Instant copy-to-clipboard for SSH connection strings
+- **Quick Connect Button**: Direct copy icon in instances table for running instances
+- **Multiple Connection Methods**: SSH, AWS Systems Manager, and Console EC2 Instance Connect
+- **Smart Connection Detection**: Only shows connection options for connectable instances
+
+### ⚡ Improved
+- **EC2 Instance Management**: Enhanced user experience with instant connection string generation
+- **Connection Workflow**: Streamlined SSH connection process with copy-paste ready commands
+- **Instance Information Display**: Better organized instance details with network information
+
+### 🔧 Technical Improvements
+- **Connection String Generation**: Automatic SSH command formatting based on instance properties
+- **Clipboard Integration**: Native browser clipboard API for seamless command copying
+- **Toast Notifications**: User feedback for successful command copying operations
+
+---
+
 ## [2.1.0] - 2024-12-19
 
 ### 🚀 Added
