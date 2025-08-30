@@ -3,7 +3,7 @@
 <div align="center">
 
 <!-- AWSSET Logo -->
-<img src="logo/awsset-logo-modern.svg" alt="AWSSET Logo" width="360" height="120">
+<img src="logo/awsset-logo-genz.svg" alt="AWSSET Logo" width="360" height="120">
 
 <br>
 

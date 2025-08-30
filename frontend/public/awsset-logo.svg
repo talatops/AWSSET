@@ -1,0 +1,121 @@
+<svg width="300" height="120" viewBox="0 0 300 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Brain gradient: cyan to purple -->
+    <linearGradient id="brainGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00D4FF;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#7B68EE;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8A2BE2;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Cloud gradient: blue to light blue -->
+    <linearGradient id="cloudGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#74B9FF;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#0984E3;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6C5CE7;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Neural network gradient -->
+    <linearGradient id="neuralGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00D4FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8A2BE2;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Glow effect -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Shadow effect -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="300" height="120" fill="#0F1419" rx="15"/>
+  
+  <!-- Main Icon: Brain + Cloud Fusion (Center) -->
+  <g transform="translate(150,60)">
+    <!-- Cloud base that forms the brain shape -->
+    <ellipse cx="0" cy="0" rx="35" ry="25" fill="url(#cloudGradient)" filter="url(#shadow)"/>
+    
+    <!-- Cloud extensions that form brain lobes -->
+    <ellipse cx="-25" cy="-10" rx="15" ry="12" fill="url(#cloudGradient)" opacity="0.9"/>
+    <ellipse cx="25" cy="-10" rx="15" ry="12" fill="url(#cloudGradient)" opacity="0.9"/>
+    <ellipse cx="0" cy="-20" rx="20" ry="15" fill="url(#cloudGradient)" opacity="0.95"/>
+    <ellipse cx="0" cy="20" rx="22" ry="18" fill="url(#cloudGradient)" opacity="0.8"/>
+    
+    <!-- Brain folds integrated into cloud -->
+    <path d="M-20,-15 Q-15,-20 -10,-20 Q-5,-20 0,-15" stroke="url(#neuralGradient)" stroke-width="2.5" fill="none" opacity="0.9"/>
+    <path d="M-15,-10 Q-10,-15 -5,-15 Q0,-15 5,-10" stroke="url(#neuralGradient)" stroke-width="2.5" fill="none" opacity="0.9"/>
+    <path d="M-10,-5 Q-5,-10 0,-10 Q5,-10 10,-5" stroke="url(#neuralGradient)" stroke-width="2.5" fill="none" opacity="0.9"/>
+    <path d="M-5,0 Q0,-5 5,0" stroke="url(#neuralGradient)" stroke-width="2.5" fill="none" opacity="0.9"/>
+    
+    <!-- Neural network nodes floating in the cloud -->
+    <circle cx="-18" cy="-18" r="2.5" fill="url(#neuralGradient)" filter="url(#glow)"/>
+    <circle cx="-12" cy="-13" r="2.5" fill="url(#neuralGradient)" filter="url(#glow)"/>
+    <circle cx="-6" cy="-8" r="2.5" fill="url(#neuralGradient)" filter="url(#glow)"/>
+    <circle cx="0" cy="-8" r="2.5" fill="url(#neuralGradient)" filter="url(#glow)"/>
+    <circle cx="6" cy="-8" r="2.5" fill="url(#neuralGradient)" filter="url(#glow)"/>
+    <circle cx="12" cy="-13" r="2.5" fill="url(#neuralGradient)" filter="url(#glow)"/>
+    <circle cx="18" cy="-18" r="2.5" fill="url(#neuralGradient)" filter="url(#glow)"/>
+    
+    <!-- Neural connections forming cloud patterns -->
+    <line x1="-18" y1="-18" x2="-12" y2="-13" stroke="url(#neuralGradient)" stroke-width="2" opacity="0.8"/>
+    <line x1="-12" y1="-13" x2="-6" y2="-8" stroke="url(#neuralGradient)" stroke-width="2" opacity="0.8"/>
+    <line x1="-6" y1="-8" x2="0" y2="-8" stroke="url(#neuralGradient)" stroke-width="2" opacity="0.8"/>
+    <line x1="0" y1="-8" x2="6" y2="-8" stroke="url(#neuralGradient)" stroke-width="2" opacity="0.8"/>
+    <line x1="6" y1="-8" x2="12" y2="-13" stroke="url(#neuralGradient)" stroke-width="2" opacity="0.8"/>
+    <line x1="12" y1="-13" x2="18" y2="-18" stroke="url(#neuralGradient)" stroke-width="2" opacity="0.8"/>
+    
+    <!-- Cross connections for complexity -->
+    <line x1="-18" y1="-18" x2="-6" y2="-8" stroke="url(#neuralGradient)" stroke-width="1.5" opacity="0.6"/>
+    <line x1="-12" y1="-13" x2="0" y2="-8" stroke="url(#neuralGradient)" stroke-width="1.5" opacity="0.6"/>
+    <line x1="-6" y1="-8" x2="6" y2="-8" stroke="url(#neuralGradient)" stroke-width="1.5" opacity="0.6"/>
+    <line x1="0" y1="-8" x2="12" y2="-13" stroke="url(#neuralGradient)" stroke-width="1.5" opacity="0.6"/>
+    <line x1="6" y1="-8" x2="18" y2="-18" stroke="url(#neuralGradient)" stroke-width="1.5" opacity="0.6"/>
+    
+    <!-- Lightning bolt inside the brain-cloud -->
+    <path d="M-3,-8 L1,-2 L-0.5,0 L3,8 L-1,2 L0.5,0 Z" fill="#FFE66D" filter="url(#glow)"/>
+    
+    <!-- Data particles floating around -->
+    <circle cx="-25" cy="-5" r="1.5" fill="#FFE66D" opacity="0.8"/>
+    <circle cx="25" cy="-5" r="1.5" fill="#FFE66D" opacity="0.8"/>
+    <circle cx="0" cy="-25" r="1.5" fill="#FFE66D" opacity="0.8"/>
+    <circle cx="0" cy="25" r="1.5" fill="#FFE66D" opacity="0.8"/>
+  </g>
+  
+  <!-- Text: AWSSET -->
+  <g transform="translate(150,100)">
+    <!-- AWS with stylized A -->
+    <text x="0" y="0" font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="800" 
+          fill="white" text-anchor="middle" filter="url(#shadow)">
+      <tspan x="0" dy="0">A</tspan>
+      <tspan x="15" dy="0">WSSET</tspan>
+    </text>
+    
+    <!-- Stylized A (inverted V) -->
+    <path d="M-12,-5 L-8,-15 L-4,-5 Z" fill="url(#brainGradient)" opacity="0.9"/>
+    
+    <!-- Tagline -->
+    <text x="0" y="20" font-family="'Segoe UI', Arial, sans-serif" font-size="12" font-weight="500" 
+          fill="#B0B0B0" text-anchor="middle">AI-POWERED CLOUD MASTERY</text>
+  </g>
+  
+  <!-- Decorative cloud elements around the logo -->
+  <g transform="translate(50,30)">
+    <ellipse cx="0" cy="0" rx="8" ry="5" fill="url(#cloudGradient)" opacity="0.6"/>
+    <ellipse cx="10" cy="-3" rx="6" ry="4" fill="url(#cloudGradient)" opacity="0.6"/>
+    <ellipse cx="-5" cy="5" rx="7" ry="4" fill="url(#cloudGradient)" opacity="0.6"/>
+  </g>
+  
+  <g transform="translate(250,30)">
+    <ellipse cx="0" cy="0" rx="8" ry="5" fill="url(#cloudGradient)" opacity="0.6"/>
+    <ellipse cx="-10" cy="-3" rx="6" ry="4" fill="url(#cloudGradient)" opacity="0.6"/>
+    <ellipse cx="5" cy="5" rx="7" ry="4" fill="url(#cloudGradient)" opacity="0.6"/>
+  </g>
+</svg>
