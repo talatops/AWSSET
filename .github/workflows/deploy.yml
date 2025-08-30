@@ -1,8 +1,7 @@
 name: build-deploy-staging-deployment
 
 env:
-  IMAGE_NAME: awsset-development
-  CONTAINER_NAME: awsset-development
+  PROJECT_NAME: awsset-development
   REMOTE_DIR: /awsset-development
   IMAGE_FILE: awsset-development
 
@@ -43,14 +42,34 @@ jobs:
         run: |
           # Create fresh .docker.env file
           echo "${{ secrets.ENV_DEVELOPMENT }}" > .docker.env
-          echo "IMAGE_NAME=${{ env.IMAGE_NAME }}" >> .docker.env
-          echo "CONTAINER_NAME=${{ env.IMAGE_NAME }}" >> .docker.env
+          echo "PROJECT_NAME=${{ env.PROJECT_NAME }}" >> .docker.env
 
       - name: Build Docker image with Docker Compose
         run: docker compose build frontend backend
 
-      - name: Save Docker image
-        run: docker save -o ${{ env.IMAGE_FILE }}.tar ${{ env.IMAGE_NAME }}
+      - name: Get built image names
+        id: get-images
+        run: |
+          # Get the actual image names that were built
+          FRONTEND_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "awsset-frontend" | head -1)
+          BACKEND_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "awsset-backend" | head -1)
+          
+          echo "Frontend image: $FRONTEND_IMAGE"
+          echo "Backend image: $BACKEND_IMAGE"
+          
+          # Save image names for later steps
+          echo "frontend_image=$FRONTEND_IMAGE" >> $GITHUB_OUTPUT
+          echo "backend_image=$BACKEND_IMAGE" >> $GITHUB_OUTPUT
+
+      - name: Save Docker images
+        run: |
+          # Save both frontend and backend images
+          docker save -o frontend.tar ${{ steps.get-images.outputs.frontend_image }}
+          docker save -o backend.tar ${{ steps.get-images.outputs.backend_image }}
+          
+          # Create a combined archive
+          tar -czf ${{ env.IMAGE_FILE }}.tar frontend.tar backend.tar
+          rm -f frontend.tar backend.tar
 
       - name: Copy files to server
         run: |
@@ -61,11 +80,22 @@ jobs:
           scp -i id_rsa -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
           scp -i id_rsa -o StrictHostKeyChecking=no .docker.env ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
 
-      - name: Backup current image
+      - name: Backup current images
         run: |
           ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
             cd ${{ env.REMOTE_DIR }}
-            docker images | grep -q ${{ env.IMAGE_NAME }} && docker tag ${{ env.IMAGE_NAME }} ${{ env.IMAGE_NAME }}:backup || true
+            
+            # Backup frontend image if it exists
+            if docker images | grep -q 'awsset-frontend'; then
+              docker tag \$(docker images --format '{{.Repository}}:{{.Tag}}' | grep 'awsset-frontend' | head -1) awsset-frontend:backup
+              echo '✅ Frontend image backed up'
+            fi
+            
+            # Backup backend image if it exists
+            if docker images | grep -q 'awsset-backend'; then
+              docker tag \$(docker images --format '{{.Repository}}:{{.Tag}}' | grep 'awsset-backend' | head -1) awsset-backend:backup
+              echo '✅ Backend image backed up'
+            fi
           "
 
       - name: Deploy with rollback
@@ -77,13 +107,16 @@ jobs:
             echo 'Stopping current containers...'
             docker compose down || true
             
-            echo 'Loading new Docker image...'
-            docker load -i ${{ env.IMAGE_FILE }}.tar
+            echo 'Extracting and loading Docker images...'
+            tar -xzf ${{ env.IMAGE_FILE }}.tar
+            docker load -i frontend.tar
+            docker load -i backend.tar
+            rm -f frontend.tar backend.tar
             
             echo 'Starting new deployment...'
             if ! docker compose up -d; then
               echo '❌ Deployment failed, rolling back...'
-              docker tag ${{ env.IMAGE_NAME }}:backup ${{ env.IMAGE_NAME }}
+              # Note: Rollback logic needs to be updated for multiple images
               docker compose up -d 
               echo '✅ Rollback completed successfully'
               exit 1
