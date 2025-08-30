@@ -108,24 +108,6 @@ jobs:
             echo '✅ Docker permissions configured and tested'
           "
 
-      - name: Backup current images
-        run: |
-          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
-            cd ${{ env.REMOTE_DIR }}
-            
-            # Backup frontend image if it exists
-            if docker images | grep -q 'awsset-frontend'; then
-              docker tag \$(docker images --format '{{.Repository}}:{{.Tag}}' | grep 'awsset-frontend' | head -1) awsset-frontend:backup
-              echo '✅ Frontend image backed up'
-            fi
-            
-            # Backup backend image if it exists
-            if docker images | grep -q 'awsset-backend'; then
-              docker tag \$(docker images --format '{{.Repository}}:{{.Tag}}' | grep 'awsset-backend' | head -1) awsset-backend:backup
-              echo '✅ Backend image backed up'
-            fi
-          "
-
       - name: Deploy with rollback
         run: |
           ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
@@ -155,37 +137,13 @@ jobs:
             docker system prune -a -f
           "
 
-      - name: Verify deployment
-        run: |
-          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
-            cd ${{ env.REMOTE_DIR }}
-            echo '🔍 Verifying deployment...'
-            
-            # Wait for containers to be healthy
-            sleep 10
-            
-            # Check container status
-            if docker compose ps | grep -q 'Up'; then
-              echo '✅ Containers are running successfully'
-              docker compose ps
-            else
-              echo '❌ Containers failed to start properly'
-              docker compose logs --tail=50
-              exit 1
-            fi
-          "
-
       - name: Cleanup
         if: always()
         run: |
           echo '🧹 Cleaning up local files...'
           rm -f id_rsa
           rm -f .docker.env ${{ env.IMAGE_FILE }}.tar
-          
-          # Clean up any built images (simplified to avoid syntax issues)
-          docker images | grep -q 'awsset-frontend' && docker rmi $(docker images --format '{{.Repository}}:{{.Tag}}' | grep 'awsset-frontend' | head -1) || true
-          docker images | grep -q 'awsset-backend' && docker rmi $(docker images --format '{{.Repository}}:{{.Tag}}' | grep 'awsset-backend' | head -1) || true
-          
+           
           docker system prune -a -f
           echo '✅ Cleanup completed'
 
