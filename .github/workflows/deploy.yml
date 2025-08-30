@@ -74,8 +74,8 @@ jobs:
       - name: Copy files to server
         run: |
           set -euo pipefail
-          # Create directory and set permissions
-          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "sudo mkdir -p ${{ env.REMOTE_DIR }} && sudo chown awsset-prod:awsset-prod ${{ env.REMOTE_DIR }}"
+          # Create directory and set permissions for ubuntu user
+          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "sudo mkdir -p ${{ env.REMOTE_DIR }} && sudo chown ubuntu:ubuntu ${{ env.REMOTE_DIR }}"
           scp -i id_rsa -o StrictHostKeyChecking=no ${{ env.IMAGE_FILE }}.tar ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
           scp -i id_rsa -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
           scp -i id_rsa -o StrictHostKeyChecking=no .docker.env ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
@@ -153,7 +153,11 @@ jobs:
           echo '🧹 Cleaning up local files...'
           rm -f id_rsa
           rm -f .docker.env ${{ env.IMAGE_FILE }}.tar
-          docker rmi ${{ env.IMAGE_NAME }} || true
+          
+          # Clean up any built images
+          docker images | grep -q 'awsset-frontend' && docker rmi \$(docker images --format '{{.Repository}}:{{.Tag}}' | grep 'awsset-frontend' | head -1) || true
+          docker images | grep -q 'awsset-backend' && docker rmi \$(docker images --format '{{.Repository}}:{{.Tag}}' | grep 'awsset-backend' | head -1) || true
+          
           docker system prune -a -f
           echo '✅ Cleanup completed'
 
