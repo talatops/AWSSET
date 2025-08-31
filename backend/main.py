@@ -14,7 +14,7 @@ import logging
 from datetime import datetime
 
 # Import custom modules
-from routers import auth, aws_services, aws_credentials, ec2, aws_stats, chat, websocket
+from routers import auth, aws_services, aws_credentials, ec2, aws_stats, chat, websocket, cloudtrail
 from database import engine, Base
 from middleware.security import SecurityMiddleware
 from utils.logger import setup_logger
@@ -57,6 +57,7 @@ app.include_router(aws_stats.router, prefix="/api/aws", tags=["AWS Statistics"])
 app.include_router(aws_services.router, prefix="/api/aws", tags=["AWS Services"])
 app.include_router(chat.router, tags=["Chat"])
 app.include_router(websocket.router, tags=["WebSocket"])
+app.include_router(cloudtrail.router, tags=["CloudTrail"])
 
 @app.get("/")
 async def root():
@@ -70,20 +71,12 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint"""
-    return {
-        "message": "AWS Chatbot API is running!",
-        "version": "1.0.0",
-        "status": "healthy"
-    }
-
-@app.get("/api/health")
-async def health_check():
     """Health check endpoint for monitoring"""
     return {
         "status": "healthy",
         "service": "aws-chatbot-backend",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 if __name__ == "__main__":

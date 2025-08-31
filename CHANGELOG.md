@@ -5,7 +5,39 @@ All notable changes to AWS Chatbot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.1] - 2024-12-19
+## [2.2.0] - 2025-08-31
+
+### 🚀 Added
+- **CloudTrail AI Analysis & Security Intelligence**: Complete security monitoring and threat detection system
+- **Real-time Security Dashboard**: Live CloudTrail event monitoring with AI-powered analysis
+- **Advanced Threat Detection**: AI-powered security threat analysis using Groq LLM
+- **Anomaly Detection Engine**: Pattern recognition for suspicious activity and unusual behavior
+- **Comprehensive Security Reporting**: Full security audit reports with risk scoring
+- **Cost Impact Analysis**: Financial impact assessment of security events
+- **Natural Language Event Search**: AI-powered search through CloudTrail events
+- **Real-time Security Alerts**: Live monitoring via WebSocket for instant threat detection
+- **Advanced Event Filtering**: Time-based, user-based, and event-based filtering capabilities
+- **Security Incident Tracking**: Comprehensive incident management and documentation
+- **Compliance Reporting**: Export functionality for audit and compliance requirements
+
+### ⚡ Improved
+- **Security Posture**: Enterprise-grade security monitoring and threat intelligence
+- **Real-time Monitoring**: Live CloudTrail event streaming and analysis
+- **AI-Powered Insights**: Advanced security analysis using state-of-the-art language models
+- **User Experience**: Intuitive security dashboard with comprehensive analytics
+- **Performance**: Optimized event processing and analysis pipeline
+
+### 🔧 Technical Improvements
+- **CloudTrail Service**: Complete backend service for AWS CloudTrail integration
+- **AI Analysis Engine**: Groq LLM integration for intelligent security analysis
+- **Real-time Processing**: WebSocket-based live event streaming
+- **Advanced Filtering**: Sophisticated event filtering and search capabilities
+- **Database Models**: Comprehensive data models for security events and analysis
+- **API Endpoints**: Full REST API for CloudTrail operations and analysis
+
+---
+
+## [2.1.1] - 2025-08-26
 
 ### 🚀 Added
 - **EC2 Instance Details Dialog**: Comprehensive instance information display with connection details
@@ -24,9 +56,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Clipboard Integration**: Native browser clipboard API for seamless command copying
 - **Toast Notifications**: User feedback for successful command copying operations
 
+### 🐛 Fixed
+- **Cache Monitor API Routing**: Fixed incorrect API endpoint paths causing 404 errors
+- **Duplicate Class Definitions**: Removed duplicate CreateInstanceRequest class in EC2 router
+- **Duplicate Health Endpoints**: Fixed duplicate health check route definitions
+- **Frontend API Calls**: Corrected relative API paths to use full backend URLs
+- **JSON Parsing Errors**: Fixed HTML responses being returned instead of JSON for cache endpoints
+- **EC2 Router Registration**: Ensured proper API endpoint registration and routing
+
 ---
 
-## [2.1.0] - 2024-12-19
+## [2.1.0] - 2025-08-25
 
 ### 🚀 Added
 - **Enhanced AI Chatbot**: Expanded from AWS-only to intelligent general conversation
@@ -75,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [2.0.0] - 2024-12-29
+## [2.0.0] - 2025-08-24
 
 ### 🚀 Added
 - **Real-time WebSocket Integration**: Live data streaming for AWS statistics and system status
@@ -107,7 +147,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.5.0] - 2024-12-15
+## [1.5.0] - 2025-08-23 
 
 ### 🚀 Added
 - **Groq AI Integration**: Switched from Gemini to Groq for better performance and reliability
@@ -136,7 +176,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.0] - 2024-12-01
+## [1.0.0] - 2025-08-22
 
 ### 🚀 Initial Release Features
 
@@ -183,7 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.9.0] - 2024-11-15 (Beta Release)
+## [0.9.0] - 2025-08-21 (Beta Release)
 
 ### 🚀 Beta Features
 - **Basic AWS Integration**: Initial EC2 and S3 support
@@ -235,9 +275,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Release Date | Support Status | End of Support |
 |---------|--------------|----------------|----------------|
-| 2.0.x   | 2024-12-29   | ✅ Active      | TBD            |
-| 1.5.x   | 2024-12-15   | ⚠️ Security Only | 2025-06-15   |
-| 1.0.x   | 2024-12-01   | ❌ End of Life | 2024-12-29   |
+| 2.0.x   | 2025-08-24   | ✅ Active      | TBD            |
+| 1.5.x   | 2025-08-23   | ⚠️ Security Only | 2025-06-15   |
+| 1.0.x   | 2025-08-22   | ❌ End of Life | 2025-08-24   |
 
 ## Migration Guides
 
@@ -333,10 +373,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 For support, please:
 1. Check our [documentation](README.md)
-2. Search [existing issues](https://github.com/username/aws-chatbot/issues)
-3. Create a [new issue](https://github.com/username/aws-chatbot/issues/new) if needed
+2. Search [existing issues](https://github.com/talatops/awsset/issues)
+3. Create a [new issue](https://github.com/talatops/awsset/issues/new) if needed
 4. Join our community discussions
 
 ---
 
-*Last updated: December 29, 2024*
+*Last updated: August 24, 2025*

@@ -32,6 +32,8 @@ import {
   Tooltip,
   Fab,
   Badge,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   PlayArrow,
@@ -67,6 +69,9 @@ const EC2Instances = () => {
     listSecurityGroups,
     listKeyPairs,
     listAMIs,
+    listInstanceTypes,
+    listVPCs,
+    listSubnets,
   } = useEC2();
 
   const [instances, setInstances] = useState([]);
@@ -81,6 +86,18 @@ const EC2Instances = () => {
   const [securityGroups, setSecurityGroups] = useState([]);
   const [keyPairs, setKeyPairs] = useState([]);
   const [amis, setAMIs] = useState([]);
+  const [instanceTypes, setInstanceTypes] = useState([]);
+  const [vpcs, setVPCs] = useState([]);
+  const [subnets, setSubnets] = useState([]);
+  const [localLoading, setLocalLoading] = useState(false);
+  const [resourceLoading, setResourceLoading] = useState({
+    securityGroups: false,
+    keyPairs: false,
+    amis: false,
+    instanceTypes: false,
+    vpcs: false,
+    subnets: false
+  });
   
   // New instance form
   const [newInstance, setNewInstance] = useState({
@@ -89,38 +106,134 @@ const EC2Instances = () => {
     instance_type: 't2.micro',
     key_name: '',
     security_group_ids: [],
+    subnet_id: '',
+    vpc_id: '',
+    // Advanced volume configuration
+    volume_size: 8,
+    volume_type: 'gp3',
+    volume_encrypted: false,
   });
 
   useEffect(() => {
+    console.log('🚀 EC2Instances component mounted, loading state:', loading);
     loadInstances();
+    loadResources();
   }, []);
-
-  const loadInstances = async () => {
-    try {
-      const result = await listInstances(filters);
-      setInstances(result.instances || []);
-    } catch (error) {
-      console.error('Failed to load instances:', error);
-    }
-  };
 
   const loadResources = async () => {
     try {
-      const [sgResult, kpResult, amiResult] = await Promise.all([
+      console.log('🔄 Loading EC2 resources...');
+      setLocalLoading(true);
+      
+      // Load critical resources first (instances, security groups, key pairs)
+      setResourceLoading(prev => ({ ...prev, securityGroups: true, keyPairs: true, amis: true }));
+      
+      const criticalResources = await Promise.all([
         listSecurityGroups(),
         listKeyPairs(),
-        listAMIs({ name: 'amzn2' }) // Amazon Linux 2
+        listAMIs()
       ]);
       
-      setSecurityGroups(sgResult.security_groups || []);
-      setKeyPairs(kpResult.key_pairs || []);
-      setAMIs(amiResult.amis || []);
+      // Update UI immediately with critical resources
+      if (criticalResources[0].success) {
+        console.log('🔒 Setting security groups:', criticalResources[0].security_groups?.length || 0);
+        setSecurityGroups(criticalResources[0].security_groups);
+      }
+      setResourceLoading(prev => ({ ...prev, securityGroups: false }));
+      
+      if (criticalResources[1].success) {
+        console.log('🔑 Setting key pairs:', criticalResources[1].key_pairs?.length || 0);
+        setKeyPairs(criticalResources[1].key_pairs);
+      }
+      setResourceLoading(prev => ({ ...prev, keyPairs: false }));
+      
+      if (criticalResources[2].success) {
+        console.log('🖼️ Setting AMIs:', criticalResources[2].amis?.length || 0);
+        setAMIs(criticalResources[2].amis);
+      }
+      setResourceLoading(prev => ({ ...prev, amis: false }));
+      
+      // Load heavy resources in background (instance types, VPCs)
+      setResourceLoading(prev => ({ ...prev, instanceTypes: true, vpcs: true }));
+      
+      Promise.all([
+        listInstanceTypes(),
+        listVPCs()
+      ]).then(([itResult, vpcResult]) => {
+        if (itResult.success) {
+          console.log('💻 Setting instance types:', itResult.instance_types?.length || 0);
+          setInstanceTypes(itResult.instance_types);
+        }
+        setResourceLoading(prev => ({ ...prev, instanceTypes: false }));
+        
+        if (vpcResult.success) {
+          console.log('🌐 Setting VPCs:', vpcResult.vpcs?.length || 0);
+          setVPCs(vpcResult.vpcs);
+          // Set default VPC
+          const defaultVPC = vpcResult.default_vpc;
+          if (defaultVPC) {
+            setNewInstance(prev => ({ ...prev, vpc_id: defaultVPC.vpc_id }));
+            // Load subnets for default VPC
+            loadSubnets(defaultVPC.vpc_id);
+          }
+        }
+        setResourceLoading(prev => ({ ...prev, vpcs: false }));
+        
+        console.log('✅ All resources loaded successfully');
+        setLocalLoading(false);
+      }).catch(error => {
+        console.error('❌ Failed to load heavy resources:', error);
+        setResourceLoading(prev => ({ ...prev, instanceTypes: false, vpcs: false }));
+        setLocalLoading(false);
+      });
+      
     } catch (error) {
-      console.error('Failed to load resources:', error);
+      console.error('❌ Failed to load critical resources:', error);
+      setLocalLoading(false);
     }
   };
 
+  const loadSubnets = async (vpcId) => {
+    try {
+      setResourceLoading(prev => ({ ...prev, subnets: true }));
+      const result = await listSubnets(vpcId);
+      if (result.success) {
+        console.log('📡 Setting subnets:', result.subnets?.length || 0);
+        setSubnets(result.subnets);
+        // Set first subnet as default
+        if (result.subnets.length > 0) {
+          setNewInstance(prev => ({ ...prev, subnet_id: result.subnets[0].subnet_id }));
+        }
+      }
+      console.log('✅ Subnets loaded successfully');
+    } catch (error) {
+      console.error('❌ Failed to load subnets:', error);
+    } finally {
+      setResourceLoading(prev => ({ ...prev, subnets: false }));
+    }
+  };
+
+  const loadInstances = async () => {
+    try {
+      console.log('🔄 Loading EC2 instances...');
+      console.log('📊 Current loading state:', loading);
+      setLocalLoading(true);
+      const result = await listInstances(filters);
+      console.log('📊 Instances result:', result);
+      setInstances(result.instances || []);
+      console.log('✅ Instances loaded:', result.instances?.length || 0);
+      console.log('📊 Loading state after instances:', loading);
+      setLocalLoading(false);
+    } catch (error) {
+      console.error('❌ Failed to load instances:', error);
+      setLocalLoading(false);
+    }
+  };
+
+
+
   const handleMenuOpen = (event, instance) => {
+    console.log('📋 Opening menu for instance:', instance);
     setAnchorEl(event.currentTarget);
     setSelectedInstance(instance);
   };
@@ -131,8 +244,10 @@ const EC2Instances = () => {
   };
 
   const handleViewDetails = () => {
+    console.log('🔍 Opening details for instance:', selectedInstance);
     setDetailsDialog(true);
-    handleMenuClose();
+    // Don't close the menu immediately to keep selectedInstance
+    setAnchorEl(null);
   };
 
   const handleAction = async (action, instance, force = false) => {
@@ -163,20 +278,61 @@ const EC2Instances = () => {
 
   const handleCreateInstance = async () => {
     try {
-      await createInstance(newInstance);
-      setCreateDialog(false);
-      setNewInstance({
-        name: '',
-        image_id: '',
-        instance_type: 't2.micro',
-        key_name: '',
-        security_group_ids: [],
-      });
+      console.log('Creating instance with config:', newInstance);
       
-      // Refresh instances
-      setTimeout(loadInstances, 2000);
+      const instanceConfig = {
+        Name: newInstance.name,
+        ImageId: newInstance.image_id,
+        InstanceType: newInstance.instance_type,
+        KeyName: newInstance.key_name || undefined,
+        SecurityGroupIds: newInstance.security_group_ids.length > 0 ? newInstance.security_group_ids : undefined,
+        SubnetId: newInstance.subnet_id || undefined,
+        // Advanced volume configuration
+        VolumeSize: newInstance.volume_size,
+        VolumeType: newInstance.volume_type,
+        VolumeEncrypted: newInstance.volume_encrypted,
+      };
+      
+      console.log('Sending instance config to backend:', instanceConfig);
+      
+      const result = await createInstance(instanceConfig);
+      
+      console.log('Backend response:', result);
+      
+      if (result.success) {
+        toast.success(`Instance creation initiated! Instance ID: ${result.instances[0].instance_id}`);
+        setCreateDialog(false);
+        setNewInstance({
+          name: '',
+          image_id: '',
+          instance_type: 't2.micro',
+          key_name: '',
+          security_group_ids: [],
+          subnet_id: '',
+          vpc_id: '',
+          volume_size: 8,
+          volume_type: 'gp3',
+          volume_encrypted: false,
+        });
+        loadInstances();
+      } else {
+        // Handle backend error
+        const errorMessage = result.error || result.error_message || 'Failed to create instance';
+        toast.error(`Instance creation failed: ${errorMessage}`);
+        console.error('Backend error:', result);
+      }
     } catch (error) {
       console.error('Failed to create instance:', error);
+      
+      // Show user-friendly error message
+      let errorMessage = 'Failed to create instance';
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
@@ -238,7 +394,7 @@ const EC2Instances = () => {
             variant="outlined"
             startIcon={<RefreshIcon />}
             onClick={loadInstances}
-            disabled={loading}
+            disabled={localLoading}
           >
             Refresh
           </Button>
@@ -250,6 +406,17 @@ const EC2Instances = () => {
             Launch Instance
           </Button>
         </Box>
+        
+        {/* Resource Loading Status */}
+        {(resourceLoading.securityGroups || resourceLoading.keyPairs || resourceLoading.amis || 
+          resourceLoading.instanceTypes || resourceLoading.vpcs || resourceLoading.subnets) && (
+          <Box display="flex" alignItems="center" gap={1} mt={2}>
+            <CircularProgress size={16} />
+            <Typography variant="caption" color="text.secondary">
+              Loading resources...
+            </Typography>
+          </Box>
+        )}
       </Box>
 
       {/* Filters */}
@@ -279,7 +446,7 @@ const EC2Instances = () => {
               onChange={(e) => setFilters(prev => ({ ...prev, tag: e.target.value }))}
               placeholder="Name:web-server"
             />
-            <Button variant="outlined" onClick={loadInstances} disabled={loading}>
+            <Button variant="outlined" onClick={loadInstances} disabled={localLoading}>
               Apply
             </Button>
           </Box>
@@ -296,7 +463,7 @@ const EC2Instances = () => {
       {/* Instance Table */}
       <Card>
         <CardContent>
-          {loading && instances.length === 0 ? (
+          {localLoading && instances.length === 0 ? (
             <Box display="flex" justifyContent="center" p={4}>
               <CircularProgress />
             </Box>
@@ -423,7 +590,7 @@ const EC2Instances = () => {
                 </TableBody>
               </Table>
               
-              {instances.length === 0 && !loading && (
+              {instances.length === 0 && !localLoading && (
                 <Box textAlign="center" p={4}>
                   <Typography variant="h6" color="text.secondary">
                     No instances found
@@ -519,7 +686,7 @@ const EC2Instances = () => {
         </DialogTitle>
         
         <DialogContent>
-          {selectedInstance && (
+          {selectedInstance ? (
             <Box>
               <Grid container spacing={3}>
                 {/* Basic Information */}
@@ -699,6 +866,15 @@ const EC2Instances = () => {
                 </Grid>
               </Grid>
             </Box>
+          ) : (
+            <Box>
+              <Typography variant="body1" color="text.secondary">
+                No instance selected or instance data not available.
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Debug info: selectedInstance = {JSON.stringify(selectedInstance, null, 2)}
+              </Typography>
+            </Box>
           )}
         </DialogContent>
         
@@ -716,6 +892,26 @@ const EC2Instances = () => {
       >
         <DialogTitle>Launch New EC2 Instance</DialogTitle>
         <DialogContent>
+          {/* Resource Loading Status */}
+          {(resourceLoading.securityGroups || resourceLoading.keyPairs || resourceLoading.amis || 
+            resourceLoading.instanceTypes || resourceLoading.vpcs || resourceLoading.subnets) && (
+            <Box display="flex" alignItems="center" gap={1} mb={2} p={2} bgcolor="grey.50" borderRadius={1}>
+              <CircularProgress size={16} />
+              <Typography variant="body2" color="text.secondary">
+                Loading resources: {
+                  [
+                    resourceLoading.securityGroups && 'Security Groups',
+                    resourceLoading.keyPairs && 'Key Pairs',
+                    resourceLoading.amis && 'AMIs',
+                    resourceLoading.instanceTypes && 'Instance Types',
+                    resourceLoading.vpcs && 'VPCs',
+                    resourceLoading.subnets && 'Subnets'
+                  ].filter(Boolean).join(', ')
+                }
+              </Typography>
+            </Box>
+          )}
+          
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12}>
               <TextField
@@ -751,11 +947,19 @@ const EC2Instances = () => {
                   onChange={(e) => setNewInstance(prev => ({ ...prev, instance_type: e.target.value }))}
                   label="Instance Type"
                 >
-                  <MenuItem value="t2.micro">t2.micro (1 vCPU, 1 GB RAM) - Free Tier</MenuItem>
-                  <MenuItem value="t2.small">t2.small (1 vCPU, 2 GB RAM)</MenuItem>
-                  <MenuItem value="t2.medium">t2.medium (2 vCPU, 4 GB RAM)</MenuItem>
-                  <MenuItem value="t3.micro">t3.micro (2 vCPU, 1 GB RAM)</MenuItem>
-                  <MenuItem value="t3.small">t3.small (2 vCPU, 2 GB RAM)</MenuItem>
+                  {instanceTypes.map((type) => (
+                    <MenuItem key={type.instance_type} value={type.instance_type}>
+                      <Box>
+                        <Typography variant="body2" fontWeight="bold">
+                          {type.instance_type}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          {type.vcpu} vCPU, {type.memory_gb} GB RAM - {type.category}
+                          {type.free_tier_eligible && ' (Free Tier)'}
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
@@ -780,6 +984,45 @@ const EC2Instances = () => {
             
             <Grid item xs={12} md={6}>
               <FormControl fullWidth>
+                <InputLabel>VPC</InputLabel>
+                <Select
+                  value={newInstance.vpc_id}
+                  onChange={(e) => {
+                    setNewInstance(prev => ({ ...prev, vpc_id: e.target.value, subnet_id: '' }));
+                    loadSubnets(e.target.value);
+                  }}
+                  label="VPC"
+                >
+                  {vpcs.map((vpc) => (
+                    <MenuItem key={vpc.vpc_id} value={vpc.vpc_id}>
+                      {vpc.name} ({vpc.vpc_id}) - {vpc.cidr_block}
+                      {vpc.is_default && ' - Default'}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
+                <InputLabel>Subnet</InputLabel>
+                <Select
+                  value={newInstance.subnet_id}
+                  onChange={(e) => setNewInstance(prev => ({ ...prev, subnet_id: e.target.value }))}
+                  label="Subnet"
+                  disabled={!newInstance.vpc_id}
+                >
+                  {subnets.map((subnet) => (
+                    <MenuItem key={subnet.subnet_id} value={subnet.subnet_id}>
+                      {subnet.name} ({subnet.subnet_id}) - {subnet.availability_zone}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth>
                 <InputLabel>Security Group</InputLabel>
                 <Select
                   multiple
@@ -794,6 +1037,53 @@ const EC2Instances = () => {
                   ))}
                 </Select>
               </FormControl>
+            </Grid>
+            
+            {/* Advanced Volume Configuration */}
+            <Grid item xs={12}>
+              <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Volume Configuration</Typography>
+            </Grid>
+            
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Volume Size (GB)"
+                value={newInstance.volume_size}
+                onChange={(e) => setNewInstance(prev => ({ ...prev, volume_size: parseInt(e.target.value) || 8 }))}
+                inputProps={{ min: 1, max: 16384 }}
+                helperText="1-16384 GB"
+              />
+            </Grid>
+            
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth>
+                <InputLabel>Volume Type</InputLabel>
+                <Select
+                  value={newInstance.volume_type}
+                  onChange={(e) => setNewInstance(prev => ({ ...prev, volume_type: e.target.value }))}
+                  label="Volume Type"
+                >
+                  <MenuItem value="gp3">GP3 (General Purpose SSD)</MenuItem>
+                  <MenuItem value="gp2">GP2 (General Purpose SSD)</MenuItem>
+                  <MenuItem value="io1">IO1 (Provisioned IOPS SSD)</MenuItem>
+                  <MenuItem value="io2">IO2 (Provisioned IOPS SSD)</MenuItem>
+                  <MenuItem value="st1">ST1 (Throughput Optimized HDD)</MenuItem>
+                  <MenuItem value="sc1">SC1 (Cold HDD)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            
+            <Grid item xs={12} md={4}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={newInstance.volume_encrypted}
+                    onChange={(e) => setNewInstance(prev => ({ ...prev, volume_encrypted: e.target.checked }))}
+                  />
+                }
+                label="Encrypt Volume"
+              />
             </Grid>
           </Grid>
         </DialogContent>

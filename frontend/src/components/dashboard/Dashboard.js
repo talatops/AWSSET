@@ -32,6 +32,8 @@ import {
   Brightness7,
   Psychology,
   Speed,
+  Security,
+  Memory as MemoryIcon,
 } from '@mui/icons-material';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,11 +42,14 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import notificationService from '../../services/notificationService';
 
+
 // Dashboard components
 import Overview from './Overview';
 import ChatPage from './ChatPage';
 import AWSServices from './AWSServices';
 import UserSettings from './UserSettings';
+import CloudTrailDashboard from '../security/CloudTrailDashboard';
+import CacheMonitor from './CacheMonitor';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const drawerWidth = 280;
@@ -277,6 +282,18 @@ const Dashboard = () => {
       icon: <CloudIcon />,
       path: '/dashboard/aws',
       color: 'info.main',
+    },
+    {
+      text: 'Security',
+      icon: <Security />,
+      path: '/dashboard/security',
+      color: 'error.main',
+    },
+    {
+      text: 'Cache Monitor',
+      icon: <MemoryIcon />,
+      path: '/dashboard/cache',
+      color: 'success.main',
     },
     {
       text: 'Settings',
@@ -611,6 +628,8 @@ const Dashboard = () => {
               <Route path="/" element={<Overview />} />
               <Route path="/chat" element={<ChatPage />} />
               <Route path="/aws" element={<AWSServices />} />
+              <Route path="/security" element={<CloudTrailDashboard />} />
+              <Route path="/cache" element={<CacheMonitor />} />
               <Route path="/settings" element={<UserSettings />} />
             </Routes>
           </motion.div>

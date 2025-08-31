@@ -126,10 +126,70 @@ const ServiceCard = ({ service, onAction }) => {
 
   const handleAction = async (action) => {
     setLoading(true);
-    setTimeout(() => {
+    
+    try {
+      switch (action) {
+        case 'view':
+          // Open AWS Console in new tab with user's region
+          const awsConsoleUrls = {
+            'EC2': 'https://console.aws.amazon.com/ec2/',
+            'S3': 'https://console.aws.amazon.com/s3/',
+            'Lambda': 'https://console.aws.amazon.com/lambda/',
+            'RDS': 'https://console.aws.amazon.com/rds/',
+            'IAM': 'https://console.aws.amazon.com/iam/',
+            'CloudWatch': 'https://console.aws.amazon.com/cloudwatch/',
+            'VPC': 'https://console.aws.amazon.com/vpc/',
+            'Bedrock': 'https://console.aws.amazon.com/bedrock/'
+          };
+          
+          if (awsConsoleUrls[service.name]) {
+            // Try to get user's AWS region from credentials
+            let region = 'us-east-1'; // Default region
+            try {
+              const userRegion = localStorage.getItem('aws_region');
+              if (userRegion) {
+                region = userRegion;
+              }
+            } catch (error) {
+              console.warn('Could not get AWS region from storage');
+            }
+            
+            // Open AWS Console with region
+            const consoleUrl = `${awsConsoleUrls[service.name]}?region=${region}`;
+            window.open(consoleUrl, '_blank');
+          }
+          break;
+          
+        case 'monitor':
+          // Navigate to service management page
+          onAction(service.name, 'view');
+          break;
+          
+        case 'settings':
+          // Open service configuration/settings
+          if (service.name === 'EC2') {
+            // Navigate to EC2 with settings tab
+            onAction(service.name, 'view');
+            // You could also open a settings dialog here
+          } else {
+            onAction(service.name, 'view');
+          }
+          break;
+          
+        case 'start':
+        case 'stop':
+          // Handle service start/stop (if applicable)
+          onAction(service.name, action);
+          break;
+          
+        default:
+          onAction(service.name, action);
+      }
+    } catch (error) {
+      console.error(`Failed to handle action ${action}:`, error);
+    } finally {
       setLoading(false);
-      onAction(service.name, action);
-    }, 1000);
+    }
   };
 
   const getStatusColor = (status) => {
@@ -288,31 +348,34 @@ const ServiceCard = ({ service, onAction }) => {
 
           {/* Actions */}
           <Box display="flex" gap={1}>
-            <Tooltip title="View Details">
+            <Tooltip title="Open AWS Console">
               <IconButton
                 size="small"
                 onClick={() => handleAction('view')}
                 disabled={loading}
+                color="primary"
               >
                 <Launch />
               </IconButton>
             </Tooltip>
             
-            <Tooltip title="Monitor">
+            <Tooltip title="Manage Service">
               <IconButton
                 size="small"
                 onClick={() => handleAction('monitor')}
                 disabled={loading}
+                color="info"
               >
                 <Monitor />
               </IconButton>
             </Tooltip>
             
-            <Tooltip title="Settings">
+            <Tooltip title="Service Settings">
               <IconButton
                 size="small"
                 onClick={() => handleAction('settings')}
                 disabled={loading}
+                color="secondary"
               >
                 <Settings />
               </IconButton>

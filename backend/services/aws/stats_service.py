@@ -5,6 +5,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from botocore.exceptions import ClientError, NoCredentialsError
 from utils.logger import get_aws_logger
+from .billing_service import AWSBillingService
 
 logger = get_aws_logger()
 
@@ -52,19 +53,29 @@ class AWSStatsService:
                     service_names = ['EC2', 'S3', 'Lambda', 'RDS', 'IAM', 'Bedrock', 'Account']
                     logger.error(f"Error fetching {service_names[i]} stats: {result}")
             
+            # Get real billing data
+            billing_data = await self._get_billing_data()
+            
+            # Update service costs with real billing data
+            services = {
+                'ec2': ec2_stats if not isinstance(ec2_stats, Exception) else self._get_default_ec2_stats(),
+                's3': s3_stats if not isinstance(s3_stats, Exception) else self._get_default_s3_stats(),
+                'lambda': lambda_stats if not isinstance(lambda_stats, Exception) else self._get_default_lambda_stats(),
+                'rds': rds_stats if not isinstance(rds_stats, Exception) else self._get_default_rds_stats(),
+                'iam': iam_stats if not isinstance(iam_stats, Exception) else self._get_default_iam_stats(),
+                'bedrock': bedrock_stats if not isinstance(bedrock_stats, Exception) else self._get_default_bedrock_stats()
+            }
+            
+            # Update costs with real billing data
+            services = self._update_service_costs(services, billing_data)
+            
             return {
                 'success': True,
                 'timestamp': datetime.utcnow().isoformat(),
                 'region': self.region,
                 'account_summary': account_summary if not isinstance(account_summary, Exception) else {},
-                'services': {
-                    'ec2': ec2_stats if not isinstance(ec2_stats, Exception) else self._get_default_ec2_stats(),
-                    's3': s3_stats if not isinstance(s3_stats, Exception) else self._get_default_s3_stats(),
-                    'lambda': lambda_stats if not isinstance(lambda_stats, Exception) else self._get_default_lambda_stats(),
-                    'rds': rds_stats if not isinstance(rds_stats, Exception) else self._get_default_rds_stats(),
-                    'iam': iam_stats if not isinstance(iam_stats, Exception) else self._get_default_iam_stats(),
-                    'bedrock': bedrock_stats if not isinstance(bedrock_stats, Exception) else self._get_default_bedrock_stats()
-                }
+                'services': services,
+                'billing': billing_data
             }
             
         except Exception as e:
@@ -119,7 +130,7 @@ class AWSStatsService:
                     'amis': amis_count,
                     'security_groups': security_groups,
                     'key_pairs': key_pairs,
-                    'cost': 'N/A'  # Would need Cost Explorer API for real costs
+                    'cost': 'N/A'  # Will be updated with real cost data
                 }
             
             return await loop.run_in_executor(self.executor, fetch_ec2_data)
@@ -404,3 +415,42 @@ class AWSStatsService:
             'tokens': 0,
             'cost': '$0.00'
         }
+    
+    async def _get_billing_data(self) -> Dict[str, Any]:
+        """Get billing data for all services"""
+        try:
+            billing_service = AWSBillingService(self.credentials)
+            return await billing_service.get_current_month_costs()
+        except Exception as e:
+            logger.error(f"Failed to get billing data: {e}")
+            return {
+                'success': False,
+                'current_month': 0.0,
+                'estimated_monthly': 0.0,
+                'by_service': {},
+                'note': 'Billing data unavailable'
+            }
+    
+    def _update_service_costs(self, services: Dict[str, Any], billing_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update service costs with real billing data"""
+        if not billing_data.get('success'):
+            return services
+        
+        # Map AWS service names to our service keys
+        service_mapping = {
+            'Amazon Elastic Compute Cloud - Compute': 'ec2',
+            'Amazon Simple Storage Service': 's3',
+            'AWS Lambda': 'lambda',
+            'Amazon Relational Database Service': 'rds',
+            'AWS Identity and Access Management': 'iam',
+            'Amazon Bedrock': 'bedrock'
+        }
+        
+        # Update each service with real cost data
+        for aws_service_name, cost in billing_data.get('by_service', {}).items():
+            service_key = service_mapping.get(aws_service_name)
+            if service_key and service_key in services:
+                # Format cost as currency string
+                services[service_key]['cost'] = f"${cost:.2f}"
+        
+        return services

@@ -7,7 +7,7 @@
 
 <br>
 
-![Version](https://img.shields.io/badge/version-2.1.0-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-2.2.0-blue?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 
 **Revolutionize your AWS management with AI-powered cloud mastery**
@@ -39,7 +39,9 @@ AWSSET is a comprehensive, AI-powered platform that transforms how you interact 
 ### 🤖 **AI-Powered Management**
 - **Conversational Interface**: Natural language commands for all AWS operations
 - **Groq AI Integration**: Advanced language model for intelligent responses
-- **CloudTrail Analysis**: AI-powered security and cost anomaly detection
+- **🔒 CloudTrail AI Analysis**: Real-time security monitoring with AI-powered threat detection
+- **🚨 Anomaly Detection**: Advanced pattern recognition for suspicious activity
+- **📊 Security Intelligence**: Comprehensive security reporting and compliance tools
 - **Smart Recommendations**: Automated optimization suggestions
 
 ### ⚡ **Real-time Operations**
@@ -54,6 +56,9 @@ AWSSET is a comprehensive, AI-powered platform that transforms how you interact 
 - **Encrypted Storage**: AES-256 encryption for sensitive data
 - **Audit Logging**: Comprehensive activity tracking
 - **Role-based Access**: Granular permission management
+- **🔒 CloudTrail AI Analysis**: Real-time security monitoring with AI-powered threat detection
+- **🚨 Anomaly Detection**: Advanced pattern recognition for suspicious activity
+- **📊 Security Intelligence**: Comprehensive security reporting and compliance tools
 
 ### 💰 **Cost Management**
 - **Budget Monitoring**: Intelligent budget alerts and forecasting

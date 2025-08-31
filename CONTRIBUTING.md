@@ -20,11 +20,11 @@ We welcome the following types of contributions:
 ```bash
 # Fork the repository on GitHub
 # Then clone your fork
-git clone https://github.com/YOUR_USERNAME/aws-chatbot.git
+git clone https://github.com/talatops/awsset.git
 cd aws-chatbot
 
 # Add upstream remote
-git remote add upstream https://github.com/ORIGINAL_OWNER/aws-chatbot.git
+git remote add upstream https://github.com/talatops/awsset.git
 ```
 
 ### **2. Set Up Development Environment**

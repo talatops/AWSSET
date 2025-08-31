@@ -1,13 +1,15 @@
-name: Deploy AWSSET to Development
+name: Deploy AWSSET v2.2.0 to Development
 
 env:
   PROJECT_NAME: awsset-development
   REMOTE_DIR: /awsset-development
+  # Version-specific deployment for v2.2.0 CloudTrail release
 
 on:
   workflow_dispatch:
   push:
-    branches: [deployment]
+    # Trigger on specific release branch for v2.2.0 and general release branch
+    branches: [release-2.2.0, release]
     paths-ignore:
       - '*.md'
       - '.gitignore'
@@ -18,6 +20,8 @@ on:
       - 'LICENSE'
       - 'CHANGELOG.md'
       - 'SECURITY.md'
+      - 'FEATURES_STATUS.md'
+      - 'RELEASE_v2.2.0.md'
 
 jobs:
   deploy:
@@ -38,16 +42,35 @@ jobs:
           echo "${{ secrets.ENV_DEVELOPMENT }}" > .docker.env
           echo "PROJECT_NAME=${{ env.PROJECT_NAME }}" >> .docker.env
           
-          # Build images
-          docker compose build frontend backend
+          # Build images with explicit naming
+          docker compose build --no-cache frontend backend
           
-          # Get image names
-          FRONTEND_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "awsset-frontend" | head -1)
-          BACKEND_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "awsset-backend" | head -1)
+          # Get image names with explicit format
+          FRONTEND_IMAGE="awsset-frontend:latest"
+          BACKEND_IMAGE="awsset-backend:latest"
           
-          # Save images
+          # Verify images exist
+          if ! docker image inspect $FRONTEND_IMAGE >/dev/null 2>&1; then
+            echo "❌ Frontend image not found: $FRONTEND_IMAGE"
+            docker images | grep awsset
+            exit 1
+          fi
+          
+          if ! docker image inspect $BACKEND_IMAGE >/dev/null 2>&1; then
+            echo "❌ Backend image not found: $BACKEND_IMAGE"
+            docker images | grep awsset
+            exit 1
+          fi
+          
+          echo "✅ Images verified:"
+          docker images | grep awsset
+          
+          # Save images with explicit names
           docker save -o frontend.tar $FRONTEND_IMAGE
           docker save -o backend.tar $BACKEND_IMAGE
+          
+          # Verify tar files
+          ls -la *.tar
           
           # Create combined archive
           tar -czf images.tar frontend.tar backend.tar
@@ -82,12 +105,34 @@ jobs:
             docker load -i frontend.tar
             docker load -i backend.tar
             
+            # Verify images loaded
+            echo '📦 Loaded images:'
+            docker images | grep awsset
+            
             # Start services
             docker compose up -d
             
+            # Wait for services to start
+            echo '⏳ Waiting for services to start...'
+            sleep 15
+            
             # Verify deployment
-            sleep 10
+            echo '🔍 Checking deployment status:'
             docker compose ps
+            
+            # Check service health
+            echo '🏥 Checking service health:'
+            if curl -f http://localhost:3000 >/dev/null 2>&1; then
+              echo '✅ Frontend is responding'
+            else
+              echo '❌ Frontend is not responding'
+            fi
+            
+            if curl -f http://localhost:8000/api/health >/dev/null 2>&1; then
+              echo '✅ Backend is responding'
+            else
+              echo '❌ Backend is not responding'
+            fi
             
             # Cleanup
             rm -f frontend.tar backend.tar images.tar
@@ -103,3 +148,4 @@ jobs:
           echo '🚀 AWSSET deployed successfully!'
           echo '📍 Frontend: http://${{ secrets.HOST_DEVELOPMENT }}'
           echo '📍 Backend: http://${{ secrets.HOST_DEVELOPMENT }}:8000'
+          echo '🔧 To check logs: ssh ubuntu@${{ secrets.HOST_DEVELOPMENT }} "cd ${{ env.REMOTE_DIR }} && docker compose logs"'

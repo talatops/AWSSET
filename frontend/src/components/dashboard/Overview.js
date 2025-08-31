@@ -44,6 +44,26 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAWS } from '../../hooks/useAWS';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 
+// Helper function to parse service costs safely
+const parseServiceCost = (cost) => {
+  if (!cost) return 0;
+  
+  if (typeof cost === 'string') {
+    // Handle real cost format: "$0.96"
+    const costMatch = cost.match(/\$([\d.]+)/);
+    if (costMatch) {
+      return parseFloat(costMatch[1]);
+    }
+    // Handle fallback values like "N/A" or "0.00"
+    if (cost !== 'N/A' && cost !== '0.00') {
+      const parsed = parseFloat(cost);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+  }
+  
+  return 0;
+};
+
 // Generate real data from AWS statistics
 const generateRealData = (awsStats) => {
   if (!awsStats?.services) {
@@ -61,14 +81,22 @@ const generateRealData = (awsStats) => {
   const totalInstances = services.ec2?.instances || 0;
   const runningInstances = services.ec2?.running || 0;
   
-  // Calculate total cost (simplified - just add up the services that have numeric costs)
+  // Calculate total cost (handle both real costs and fallback values)
   const calculateTotalCost = () => {
     let total = 0;
     Object.values(services).forEach(service => {
       if (service.cost && typeof service.cost === 'string') {
+        // Handle real cost format: "$0.96"
         const costMatch = service.cost.match(/\$([\d.]+)/);
         if (costMatch) {
           total += parseFloat(costMatch[1]);
+        }
+        // Handle fallback values like "N/A" or "0.00"
+        else if (service.cost !== 'N/A' && service.cost !== '0.00') {
+          const parsed = parseFloat(service.cost);
+          if (!isNaN(parsed)) {
+            total += parsed;
+          }
         }
       }
     });
@@ -82,31 +110,31 @@ const generateRealData = (awsStats) => {
     { 
       name: 'EC2', 
       value: services.ec2?.instances || 0, 
-      cost: parseFloat((services.ec2?.cost || '$0.00').replace('$', '')), 
+      cost: parseServiceCost(services.ec2?.cost), 
       color: '#FF9900' 
     },
     { 
       name: 'S3', 
       value: services.s3?.buckets || 0, 
-      cost: parseFloat((services.s3?.cost || '$0.00').replace('$', '')), 
+      cost: parseServiceCost(services.s3?.cost), 
       color: '#3F48CC' 
     },
     { 
       name: 'Lambda', 
       value: services.lambda?.functions || 0, 
-      cost: parseFloat((services.lambda?.cost || '$0.00').replace('$', '')), 
+      cost: parseServiceCost(services.lambda?.cost), 
       color: '#FF9900' 
     },
     { 
       name: 'RDS', 
       value: services.rds?.databases || 0, 
-      cost: parseFloat((services.rds?.cost || '$0.00').replace('$', '')), 
+      cost: parseServiceCost(services.rds?.cost), 
       color: '#527FFF' 
     },
     { 
       name: 'IAM', 
       value: services.iam?.users || 0, 
-      cost: parseFloat((services.iam?.cost || '$0.00').replace('$', '')), 
+      cost: parseServiceCost(services.iam?.cost), 
       color: '#759C3E' 
     },
   ].filter(service => service.value > 0); // Only show services with resources
@@ -689,6 +717,65 @@ const Overview = () => {
                     </Box>
                   ))}
                 </Box>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </Grid>
+
+        {/* Billing Summary */}
+        <Grid item xs={12} md={6}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+          >
+            <Card>
+              <CardContent>
+                <Typography variant="h6" fontWeight="bold" gutterBottom>
+                  AWS Billing Summary
+                </Typography>
+                
+                {awsStats?.billing ? (
+                  <Box>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Typography variant="body2" color="text.secondary">
+                        Current Month
+                      </Typography>
+                      <Typography variant="h6" fontWeight="bold" color="primary">
+                        ${awsStats.billing.current_month?.toFixed(2) || '0.00'}
+                      </Typography>
+                    </Box>
+                    
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                      <Typography variant="body2" color="text.secondary">
+                        Estimated Monthly
+                      </Typography>
+                      <Typography variant="h6" fontWeight="bold" color="warning.main">
+                        ${awsStats.billing.estimated_monthly?.toFixed(2) || '0.00'}
+                      </Typography>
+                    </Box>
+                    
+                    {awsStats.billing.period && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Period: {awsStats.billing.period}
+                      </Typography>
+                    )}
+                    
+                    {awsStats.billing.note && (
+                      <Alert severity="info" sx={{ mt: 2 }}>
+                        <Typography variant="body2">
+                          {awsStats.billing.note}
+                        </Typography>
+                      </Alert>
+                    )}
+                  </Box>
+                ) : (
+                  <Box textAlign="center" py={2}>
+                    <Typography variant="body2" color="text.secondary">
+                      Billing data not available
+                    </Typography>
+                  </Box>
+                )}
               </CardContent>
             </Card>
           </motion.div>

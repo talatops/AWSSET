@@ -315,6 +315,28 @@ export const useEC2 = () => {
     });
   };
 
+  const listInstanceTypes = async () => {
+    return handleRequest(async () => {
+      const response = await api.get('/api/aws/ec2/instance-types');
+      return response.data;
+    });
+  };
+
+  const listVPCs = async () => {
+    return handleRequest(async () => {
+      const response = await api.get('/api/aws/ec2/vpcs');
+      return response.data;
+    });
+  };
+
+  const listSubnets = async (vpcId = null) => {
+    return handleRequest(async () => {
+      const params = vpcId ? `?vpc_id=${vpcId}` : '';
+      const response = await api.get(`/api/aws/ec2/subnets${params}`);
+      return response.data;
+    });
+  };
+
   return {
     loading,
     error,
@@ -330,5 +352,8 @@ export const useEC2 = () => {
     createKeyPair,
     deleteKeyPair,
     listAMIs,
+    listInstanceTypes,
+    listVPCs,
+    listSubnets,
   };
 };

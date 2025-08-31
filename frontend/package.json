@@ -1,6 +1,6 @@
 {
   "name": "awsset-frontend",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "AWSSET - AI-Powered Cloud Management Dashboard",
   "main": "src/index.js",
   "scripts": {
@@ -30,6 +30,7 @@
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.1"
   },
+
   "devDependencies": {
     "@testing-library/jest-dom": "^5.16.0",
     "@testing-library/react": "^12.1.5",
