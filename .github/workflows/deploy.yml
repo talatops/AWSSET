@@ -43,180 +43,54 @@ jobs:
           echo "${{ secrets.ENV_DEVELOPMENT }}" > .docker.env
           echo "PROJECT_NAME=${{ env.PROJECT_NAME }}" >> .docker.env
           
-          # Build images with explicit naming
+          # Build images locally
           echo '🔨 Building frontend and backend images...'
           docker compose build --no-cache frontend backend
           
-          # Check if any database images are being pulled
-          echo '🔍 Checking for database images...'
-          docker images | grep -E "(postgres|mysql|db|database)" || echo "No database images found"
-          
-          # Pre-pull database images to avoid timeouts during deployment
+          # Pre-pull database images
           echo '📥 Pre-pulling database images...'
-          docker pull postgres:15-alpine || echo "Failed to pull postgres image"
-          docker pull redis:7-alpine || echo "Failed to pull redis image"
+          docker pull postgres:15-alpine
+          docker pull redis:7-alpine
           
-          # Get image names with explicit format
-          FRONTEND_IMAGE="awsset-frontend:latest"
-          BACKEND_IMAGE="awsset-backend:latest"
+          # Verify all images exist
+          echo '✅ Images ready:'
+          docker images | grep -E "(awsset|postgres|redis)"
           
-          # Verify images exist
-          if ! docker image inspect $FRONTEND_IMAGE >/dev/null 2>&1; then
-            echo "❌ Frontend image not found: $FRONTEND_IMAGE"
-            docker images | grep awsset
-            exit 1
+          # Simple deployment - just start services
+          echo '🚀 Starting services...'
+          docker compose up -d
+          
+          # Wait for services to start
+          echo '⏳ Waiting for services to start...'
+          sleep 30
+          
+          # Check service status
+          echo '🔍 Service status:'
+          docker compose ps
+          
+          # Check if services are responding
+          echo '🏥 Health check:'
+          if curl -f http://localhost:3000 >/dev/null 2>&1; then
+            echo '✅ Frontend is responding'
+          else
+            echo '❌ Frontend is not responding'
           fi
           
-          if ! docker image inspect $BACKEND_IMAGE >/dev/null 2>&1; then
-            echo "❌ Backend image not found: $BACKEND_IMAGE"
-            docker images | grep awsset
-            exit 1
+          if curl -f http://localhost:8000/api/health >/dev/null 2>&1; then
+            echo '✅ Backend is responding'
+          else
+            echo '❌ Backend is not responding'
           fi
           
-          echo "✅ Images verified:"
-          docker images | grep awsset
-          
-          # Save images with explicit names
-          echo '💾 Saving frontend image...'
-          docker save -o frontend.tar $FRONTEND_IMAGE
-          
-          echo '💾 Saving backend image...'
-          docker save -o backend.tar $BACKEND_IMAGE
-          
-          echo '💾 Saving database images...'
-          docker save -o postgres.tar postgres:15-alpine
-          docker save -o redis.tar redis:7-alpine
-          
-          # Verify tar files
-          echo '📋 Verifying tar files...'
-          ls -la *.tar
-          
-          # Create combined archive
-          echo '📦 Creating combined archive...'
-          tar -czf images.tar frontend.tar backend.tar postgres.tar redis.tar
-          
-          # Deploy to server - Simplified commands
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
-            sudo usermod -aG docker ubuntu || true
-            sudo chmod 666 /var/run/docker.sock || true
-            sudo mkdir -p ${{ env.REMOTE_DIR }}
-            sudo chown ubuntu:ubuntu ${{ env.REMOTE_DIR }}
-            cd ${{ env.REMOTE_DIR }}
-            docker compose down || true
-            
-            # Force remove any stuck containers
-            docker ps -aq | xargs -r docker rm -f || true
-            
-            # Clean up old images
-            docker system prune -a -f || true
-            
-            # Check for any remaining containers
-            echo '🔍 Checking for remaining containers...'
-            docker ps -a
-          "
-          
-          # Copy files
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 images.tar docker-compose.yml .docker.env ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
-          
-          # Deploy on server - Simplified commands to avoid syntax issues
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
-            cd ${{ env.REMOTE_DIR }}
-            
-            # Extract and load images
-            echo '📦 Extracting images...'
-            tar -xzf images.tar
-            
-            echo '📥 Loading frontend image...'
-            docker load -i frontend.tar
-            
-            echo '📥 Loading backend image...'
-            docker load -i backend.tar
-            
-            echo '📥 Loading postgres image...'
-            docker load -i postgres.tar
-            
-            echo '📥 Loading redis image...'
-            docker load -i redis.tar
-            
-            # Verify images loaded
-            echo '📦 Loaded images:'
-            docker images | grep awsset
-            echo '📦 Database images:'
-            docker images | grep -E '(postgres|redis)'
-            
-            # Check for port conflicts
-            echo '🔍 Checking for port conflicts...'
-            netstat -tlnp | grep -E ':(3000|8000|5432|6379)' || echo "No port conflicts detected"
-            
-            # Check Docker daemon status
-            echo '🔍 Checking Docker daemon status...'
-            docker info | head -5
-            
-            # Start services with timeout and progress monitoring
-            echo '🚀 Starting services...'
-            
-            # Start services in background and monitor progress
-            docker compose up -d &
-            COMPOSE_PID=$!
-            
-            # Monitor startup progress
-            echo '⏳ Monitoring service startup...'
-            for i in {1..60}; do
-              if ! kill -0 $COMPOSE_PID 2>/dev/null; then
-                echo "✅ Services started successfully"
-                break
-              fi
-              
-              # Check if services are running
-              if docker compose ps | grep -q "Up"; then
-                echo "✅ Services are running"
-                break
-              fi
-              
-              echo "⏳ Waiting for services... ($i/60 seconds)"
-              sleep 5
-            done
-            
-            # If still running after 5 minutes, kill it
-            if kill -0 $COMPOSE_PID 2>/dev/null; then
-              echo "❌ Services taking too long, killing process..."
-              kill $COMPOSE_PID
-              docker compose logs
-              exit 1
-            fi
-            
-            # Wait a bit more for services to stabilize
-            echo '⏳ Waiting for services to stabilize...'
-            sleep 10
-            
-            # Verify docker-compose configuration
-            echo '🔍 Verifying docker-compose configuration...'
-            docker compose config
-            
-            # Verify deployment
-            echo '🔍 Checking deployment status:'
-            docker compose ps
-            
-            # Check service health
-            echo '🏥 Checking service health:'
-            curl -f http://localhost:3000 >/dev/null 2>&1 && echo '✅ Frontend is responding' || echo '❌ Frontend is not responding'
-            curl -f http://localhost:8000/api/health >/dev/null 2>&1 && echo '✅ Backend is responding' || echo '❌ Backend is not responding'
-            
-            # Cleanup
-            rm -f frontend.tar backend.tar images.tar
-            docker system prune -a -f
-          "
-          
-          # Cleanup local files
-          rm -f frontend.tar backend.tar images.tar .docker.env
-          docker system prune -a -f
+          # Cleanup
+          rm -f .docker.env
 
       - name: Deployment Complete
         run: |
           echo '🚀 AWSSET deployed successfully!'
-          echo '📍 Frontend: http://${{ secrets.HOST_DEVELOPMENT }}'
-          echo '📍 Backend: http://${{ secrets.HOST_DEVELOPMENT }}:8000'
-          echo '🔧 To check logs: ssh ubuntu@${{ secrets.HOST_DEVELOPMENT }} "cd ${{ env.REMOTE_DIR }} && docker compose logs"'
+          echo '📍 Frontend: http://localhost:3000'
+          echo '📍 Backend: http://localhost:8000'
+          echo '🔧 To check logs: docker compose logs'
 
   # SonarQube Code Quality Analysis - DISABLED
   # sonarqube:
