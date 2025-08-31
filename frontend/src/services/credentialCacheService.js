@@ -1,142 +1,222 @@
 /**
- * Global AWS Credential Cache Service
+ * User-Specific AWS Credential Cache Service
  * Prevents repeated API calls for credentials across page navigations
+ * Each user has their own isolated cache
  */
 
 class CredentialCacheService {
   constructor() {
-    this.credentials = null;
-    this.lastFetch = null;
+    this.userCredentials = new Map(); // Map of user ID to credentials
     this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
-    this.isFetching = false;
-    this.fetchPromise = null;
+    this.isFetching = new Map(); // Track fetching state per user
+    this.fetchPromises = new Map(); // Track fetch promises per user
+  }
+
+  /**
+   * Get user ID from the API instance (extract from auth headers)
+   */
+  _getUserId(api) {
+    try {
+      // Try to get user ID from localStorage or decode JWT token
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        // Simple JWT decode to get user ID (payload.sub)
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.sub || payload.user_id || 'unknown';
+      }
+    } catch (error) {
+      console.warn('Could not extract user ID from token:', error);
+    }
+    return 'unknown';
+  }
+
+  /**
+   * Get cache key for a specific user
+   */
+  _getCacheKey(userId) {
+    return `awsset-cached-credentials-${userId}`;
   }
 
   /**
    * Get credentials from cache or fetch if needed
    */
   async getCredentials(api, forceRefresh = false) {
+    const userId = this._getUserId(api);
+    const cacheKey = this._getCacheKey(userId);
+    
     // Return cached credentials if they exist and haven't expired
-    if (!forceRefresh && this.credentials && this.lastFetch && 
-        (Date.now() - this.lastFetch) < this.cacheExpiry) {
-      console.log('📋 Returning cached AWS credentials');
-      return this.credentials;
+    const userCache = this.userCredentials.get(userId);
+    if (!forceRefresh && userCache && userCache.lastFetch && 
+        (Date.now() - userCache.lastFetch) < this.cacheExpiry) {
+      console.log(`📋 Returning cached AWS credentials for user ${userId}`);
+      return userCache.credentials;
     }
 
-    // If already fetching, return the existing promise
-    if (this.isFetching && this.fetchPromise) {
-      console.log('📋 Credentials already being fetched, waiting...');
-      return this.fetchPromise;
+    // If already fetching for this user, return the existing promise
+    if (this.isFetching.get(userId) && this.fetchPromises.get(userId)) {
+      console.log(`📋 Credentials already being fetched for user ${userId}, waiting...`);
+      return this.fetchPromises.get(userId);
     }
 
     // Fetch new credentials
-    console.log('📋 Fetching fresh AWS credentials...');
-    this.isFetching = true;
+    console.log(`📋 Fetching fresh AWS credentials for user ${userId}...`);
+    this.isFetching.set(userId, true);
     
     try {
       const response = await api.get('/api/aws/credentials');
-      this.credentials = response.data;
-      this.lastFetch = Date.now();
+      const credentialsData = response.data;
       
-      // Cache in localStorage for persistence across browser sessions
-      localStorage.setItem('awsset-cached-credentials', JSON.stringify({
-        credentials: this.credentials,
-        timestamp: this.lastFetch
+      // Update user-specific cache
+      this.userCredentials.set(userId, {
+        credentials: credentialsData,
+        lastFetch: Date.now()
+      });
+      
+      // Cache in localStorage for persistence across browser sessions (user-specific)
+      localStorage.setItem(cacheKey, JSON.stringify({
+        credentials: credentialsData,
+        timestamp: Date.now()
       }));
       
-      console.log('📋 AWS credentials cached successfully');
-      return this.credentials;
+      console.log(`📋 AWS credentials cached successfully for user ${userId}`);
+      return credentialsData;
     } catch (error) {
-      console.error('Failed to fetch AWS credentials:', error);
-      this.credentials = null;
+      console.error(`Failed to fetch AWS credentials for user ${userId}:`, error);
+      // Clear user cache on error
+      this.userCredentials.delete(userId);
       throw error;
     } finally {
-      this.isFetching = false;
-      this.fetchPromise = null;
+      this.isFetching.set(userId, false);
+      this.fetchPromises.delete(userId);
     }
   }
 
   /**
-   * Update cached credentials (e.g., after storing new ones)
+   * Update cached credentials for a specific user
    */
-  updateCredentials(newCredentials) {
-    this.credentials = newCredentials;
-    this.lastFetch = Date.now();
+  updateCredentials(newCredentials, api) {
+    const userId = this._getUserId(api);
+    const cacheKey = this._getCacheKey(userId);
+    
+    // Update user-specific cache
+    this.userCredentials.set(userId, {
+      credentials: newCredentials,
+      lastFetch: Date.now()
+    });
     
     // Update localStorage
-    localStorage.setItem('awsset-cached-credentials', JSON.stringify({
-      credentials: this.credentials,
-      timestamp: this.lastFetch
+    localStorage.setItem(cacheKey, JSON.stringify({
+      credentials: newCredentials,
+      timestamp: Date.now()
     }));
     
-    console.log('📋 AWS credentials cache updated');
+    console.log(`📋 AWS credentials cache updated for user ${userId}`);
   }
 
   /**
-   * Clear cached credentials (e.g., after removal)
+   * Clear cached credentials for a specific user
    */
-  clearCredentials() {
-    this.credentials = null;
-    this.lastFetch = null;
-    localStorage.removeItem('awsset-cached-credentials');
-    console.log('📋 AWS credentials cache cleared');
+  clearCredentials(api) {
+    const userId = this._getUserId(api);
+    const cacheKey = this._getCacheKey(userId);
+    
+    // Clear user-specific cache
+    this.userCredentials.delete(userId);
+    this.isFetching.delete(userId);
+    this.fetchPromises.delete(userId);
+    
+    // Clear localStorage
+    localStorage.removeItem(cacheKey);
+    
+    console.log(`📋 AWS credentials cache cleared for user ${userId}`);
   }
 
   /**
-   * Load credentials from localStorage on app startup
+   * Load credentials from localStorage on app startup for a specific user
    */
-  loadFromStorage() {
+  loadFromStorage(api) {
+    const userId = this._getUserId(api);
+    const cacheKey = this._getCacheKey(userId);
+    
     try {
-      const cached = localStorage.getItem('awsset-cached-credentials');
+      const cached = localStorage.getItem(cacheKey);
       if (cached) {
         const { credentials, timestamp } = JSON.parse(cached);
         
         // Check if cache is still valid
         if (timestamp && (Date.now() - timestamp) < this.cacheExpiry) {
-          this.credentials = credentials;
-          this.lastFetch = timestamp;
-          console.log('📋 Loaded AWS credentials from localStorage cache');
+          this.userCredentials.set(userId, {
+            credentials: credentials,
+            lastFetch: timestamp
+          });
+          console.log(`📋 Loaded AWS credentials from localStorage cache for user ${userId}`);
           return true;
         } else {
           // Cache expired, remove it
-          localStorage.removeItem('awsset-cached-credentials');
-          console.log('📋 AWS credentials cache expired, removed');
+          localStorage.removeItem(cacheKey);
+          console.log(`📋 AWS credentials cache expired for user ${userId}, removed`);
         }
       }
     } catch (error) {
-      console.error('Error loading credentials from localStorage:', error);
-      localStorage.removeItem('awsset-cached-credentials');
+      console.error(`Failed to load cached credentials for user ${userId}:`, error);
+      localStorage.removeItem(cacheKey);
     }
+    
     return false;
   }
 
   /**
-   * Get cached credentials without fetching
+   * Get cached credentials for a specific user without fetching
    */
-  getCachedCredentials() {
-    return this.credentials;
+  getCachedCredentials(api) {
+    const userId = this._getUserId(api);
+    const userCache = this.userCredentials.get(userId);
+    
+    if (userCache && userCache.credentials && userCache.lastFetch && 
+        (Date.now() - userCache.lastFetch) < this.cacheExpiry) {
+      return userCache.credentials;
+    }
+    
+    return null;
   }
 
   /**
-   * Check if credentials are cached and valid
+   * Check if user has valid cached credentials
    */
-  hasValidCache() {
-    return this.credentials && this.lastFetch && 
-           (Date.now() - this.lastFetch) < this.cacheExpiry;
+  hasValidCache(api) {
+    const userId = this._getUserId(api);
+    const userCache = this.userCredentials.get(userId);
+    
+    return userCache && userCache.credentials && userCache.lastFetch && 
+           (Date.now() - userCache.lastFetch) < this.cacheExpiry;
   }
 
   /**
-   * Force refresh credentials
+   * Refresh credentials for a specific user
    */
   async refreshCredentials(api) {
     return this.getCredentials(api, true);
   }
+
+  /**
+   * Clear all user caches (useful for logout)
+   */
+  clearAllCaches() {
+    this.userCredentials.clear();
+    this.isFetching.clear();
+    this.fetchPromises.clear();
+    
+    // Clear all localStorage keys that match our pattern
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('awsset-cached-credentials-')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    console.log('📋 All AWS credentials caches cleared');
+  }
 }
 
-// Create singleton instance
+// Export singleton instance
 const credentialCacheService = new CredentialCacheService();
-
-// Load any existing cache on service initialization
-credentialCacheService.loadFromStorage();
-
 export default credentialCacheService;

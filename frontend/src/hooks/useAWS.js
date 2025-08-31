@@ -43,7 +43,7 @@ export const useAWS = () => {
       if (response.data.success) {
         if (isMounted) setCredentials(response.data);
         // Update the global cache
-        credentialCacheService.updateCredentials(response.data);
+        credentialCacheService.updateCredentials(response.data, api);
         toast.success('AWS credentials stored successfully!');
         return response.data;
       } else {
@@ -102,8 +102,8 @@ export const useAWS = () => {
       if (isMounted) setLoading(true);
       await api.delete('/api/aws/credentials');
       if (isMounted) setCredentials(null);
-      // Clear the global cache
-      credentialCacheService.clearCredentials();
+              // Clear the global cache
+        credentialCacheService.clearCredentials(api);
       toast.success('AWS credentials removed successfully!');
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.message;

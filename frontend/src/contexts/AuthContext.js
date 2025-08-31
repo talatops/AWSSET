@@ -268,6 +268,14 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Clear all credential caches before logout
+      try {
+        const { default: credentialCacheService } = await import('../services/credentialCacheService');
+        credentialCacheService.clearAllCaches();
+      } catch (error) {
+        console.warn('Could not clear credential caches:', error);
+      }
+      
       // Clear local storage
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');

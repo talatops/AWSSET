@@ -1,14 +1,13 @@
-name: build-deploy-staging-deployment
+name: Deploy AWSSET to Development
 
 env:
   PROJECT_NAME: awsset-development
   REMOTE_DIR: /awsset-development
-  IMAGE_FILE: awsset-development
 
 on:
   workflow_dispatch:
   push:
-    branches: deployment
+    branches: [deployment]
     paths-ignore:
       - '*.md'
       - '.gitignore'
@@ -21,141 +20,86 @@ on:
       - 'SECURITY.md'
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-22.04
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup SSH agent
+      - name: Setup SSH
         uses: webfactory/ssh-agent@v0.8.0
         with:
           ssh-private-key: ${{ secrets.SSH_KEY_DEVELOPMENT }}
 
-      - name: Setup SSH
+      - name: Build and Deploy
         run: |
-          echo "${{ secrets.SSH_KEY_DEVELOPMENT }}" > id_rsa
-          chmod 600 id_rsa
-      
-      - name: Set up environment
-        run: |
-          # Create fresh .docker.env file
+          # Create environment file
           echo "${{ secrets.ENV_DEVELOPMENT }}" > .docker.env
           echo "PROJECT_NAME=${{ env.PROJECT_NAME }}" >> .docker.env
-
-      - name: Build Docker image with Docker Compose
-        run: docker compose build frontend backend
-
-      - name: Get built image names
-        id: get-images
-        run: |
-          # Get the actual image names that were built
+          
+          # Build images
+          docker compose build frontend backend
+          
+          # Get image names
           FRONTEND_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "awsset-frontend" | head -1)
           BACKEND_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "awsset-backend" | head -1)
           
-          echo "Frontend image: $FRONTEND_IMAGE"
-          echo "Backend image: $BACKEND_IMAGE"
+          # Save images
+          docker save -o frontend.tar $FRONTEND_IMAGE
+          docker save -o backend.tar $BACKEND_IMAGE
           
-          # Save image names for later steps
-          echo "frontend_image=$FRONTEND_IMAGE" >> $GITHUB_OUTPUT
-          echo "backend_image=$BACKEND_IMAGE" >> $GITHUB_OUTPUT
-
-      - name: Save Docker images
-        run: |
-          # Save both frontend and backend images
-          docker save -o frontend.tar ${{ steps.get-images.outputs.frontend_image }}
-          docker save -o backend.tar ${{ steps.get-images.outputs.backend_image }}
+          # Create combined archive
+          tar -czf images.tar frontend.tar backend.tar
           
-          # Create a combined archive
-          tar -czf ${{ env.IMAGE_FILE }}.tar frontend.tar backend.tar
-          rm -f frontend.tar backend.tar
-
-      - name: Copy files to server
-        run: |
-          set -euo pipefail
-          # Create directory and set permissions for ubuntu user
-          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "sudo mkdir -p ${{ env.REMOTE_DIR }} && sudo chown ubuntu:ubuntu ${{ env.REMOTE_DIR }}"
-          scp -i id_rsa -o StrictHostKeyChecking=no ${{ env.IMAGE_FILE }}.tar ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
-          scp -i id_rsa -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
-          scp -i id_rsa -o StrictHostKeyChecking=no .docker.env ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
-
-      - name: Setup Docker permissions
-        run: |
-          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
-            # Ensure Docker is running
-            sudo systemctl start docker || true
-            sudo systemctl enable docker || true
-            
-            # Add ubuntu user to docker group if not already added
-            if ! groups ubuntu | grep -q docker; then
-              sudo usermod -aG docker ubuntu
-              echo '✅ Added ubuntu user to docker group'
-            else
-              echo '✅ Ubuntu user already in docker group'
-            fi
-            
-            # Ensure docker group exists
-            sudo groupadd docker || true
-            
-            # Set proper permissions for docker socket
+          # Deploy to server
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
+            # Setup Docker permissions
+            sudo usermod -aG docker ubuntu || true
             sudo chmod 666 /var/run/docker.sock || true
             
-            # Test Docker access
-            docker --version
-            docker ps
+            # Create directory
+            sudo mkdir -p ${{ env.REMOTE_DIR }}
+            sudo chown ubuntu:ubuntu ${{ env.REMOTE_DIR }}
             
-            echo '✅ Docker permissions configured and tested'
-          "
-
-      - name: Deploy with rollback
-        run: |
-          ssh -i id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
-            set -euo pipefail
+            # Stop existing containers
             cd ${{ env.REMOTE_DIR }}
-            
-            echo 'Stopping current containers...'
             docker compose down || true
             
-            echo 'Extracting and loading Docker images...'
-            tar -xzf ${{ env.IMAGE_FILE }}.tar
+            # Clean up old images
+            docker system prune -a -f || true
+          "
+          
+          # Copy files
+          scp -o StrictHostKeyChecking=no images.tar docker-compose.yml .docker.env ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
+          
+          # Deploy on server
+          ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
+            cd ${{ env.REMOTE_DIR }}
+            
+            # Extract and load images
+            tar -xzf images.tar
             docker load -i frontend.tar
             docker load -i backend.tar
-            rm -f frontend.tar backend.tar
             
-            echo 'Starting new deployment...'
-            if ! docker compose up -d; then
-              echo '❌ Deployment failed, rolling back...'
-              # Note: Rollback logic needs to be updated for multiple images
-              docker compose up -d 
-              echo '✅ Rollback completed successfully'
-              exit 1
-            fi
+            # Start services
+            docker compose up -d
             
-            echo '✅ Deployment successful!'
-            echo 'Cleaning up old images...'
+            # Verify deployment
+            sleep 10
+            docker compose ps
+            
+            # Cleanup
+            rm -f frontend.tar backend.tar images.tar
             docker system prune -a -f
           "
-
-      - name: Cleanup
-        if: always()
-        run: |
-          echo '🧹 Cleaning up local files...'
-          rm -f id_rsa
-          rm -f .docker.env ${{ env.IMAGE_FILE }}.tar
-           
+          
+          # Cleanup local files
+          rm -f frontend.tar backend.tar images.tar .docker.env
           docker system prune -a -f
-          echo '✅ Cleanup completed'
 
-      - name: Deployment Summary
-        if: always()
+      - name: Deployment Complete
         run: |
-          echo '🚀 Deployment Workflow Summary'
-          echo '=============================='
-          echo '✅ Build completed successfully'
-          echo '✅ Image saved and transferred'
-          echo '✅ Deployment executed with rollback protection'
-          echo '✅ Verification completed'
-          echo '✅ Cleanup finished'
-          echo ''
-          echo '🎯 Your AWSSET application is now deployed!'
+          echo '🚀 AWSSET deployed successfully!'
+          echo '📍 Frontend: http://${{ secrets.HOST_DEVELOPMENT }}'
+          echo '📍 Backend: http://${{ secrets.HOST_DEVELOPMENT }}:8000'
