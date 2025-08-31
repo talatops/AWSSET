@@ -56,41 +56,79 @@ jobs:
           echo '✅ Images ready:'
           docker images | grep -E "(awsset|postgres|redis)"
           
-          # Simple deployment - just start services
-          echo '🚀 Starting services...'
-          docker compose up -d
+          # Save images for transfer to EC2
+          echo '💾 Saving images for EC2 deployment...'
+          docker save -o frontend.tar awsset-frontend:latest
+          docker save -o backend.tar awsset-backend:latest
+          docker save -o postgres.tar postgres:15-alpine
+          docker save -o redis.tar redis:7-alpine
           
-          # Wait for services to start
-          echo '⏳ Waiting for services to start...'
-          sleep 30
+          # Create deployment package
+          echo '📦 Creating deployment package...'
+          tar -czf deployment.tar frontend.tar backend.tar postgres.tar redis.tar docker-compose.yml .docker.env
           
-          # Check service status
-          echo '🔍 Service status:'
-          docker compose ps
+          # Deploy to EC2 instance
+          echo '🚀 Deploying to EC2 instance...'
           
-          # Check if services are responding
-          echo '🏥 Health check:'
-          if curl -f http://localhost:3000 >/dev/null 2>&1; then
-            echo '✅ Frontend is responding'
-          else
-            echo '❌ Frontend is not responding'
-          fi
+          # Setup SSH connection
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
+            # Stop existing services
+            cd ${{ env.REMOTE_DIR }} || mkdir -p ${{ env.REMOTE_DIR }}
+            docker compose down || true
+            
+            # Clean up old containers and images
+            docker system prune -a -f || true
+          "
           
-          if curl -f http://localhost:8000/api/health >/dev/null 2>&1; then
-            echo '✅ Backend is responding'
-          else
-            echo '❌ Backend is not responding'
-          fi
+          # Copy deployment package to EC2
+          echo '📤 Copying files to EC2...'
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 deployment.tar ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
           
-          # Cleanup
-          rm -f .docker.env
+          # Deploy on EC2
+          echo '🚀 Starting services on EC2...'
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
+            cd ${{ env.REMOTE_DIR }}
+            
+            # Extract deployment package
+            tar -xzf deployment.tar
+            
+            # Load Docker images
+            echo '📥 Loading images...'
+            docker load -i frontend.tar
+            docker load -i backend.tar
+            docker load -i postgres.tar
+            docker load -i redis.tar
+            
+            # Start services
+            echo '🚀 Starting services...'
+            docker compose up -d
+            
+            # Wait for services
+            echo '⏳ Waiting for services to start...'
+            sleep 30
+            
+            # Check status
+            echo '🔍 Service status:'
+            docker compose ps
+            
+            # Health check
+            echo '🏥 Health check:'
+            curl -f http://localhost:3000 >/dev/null 2>&1 && echo '✅ Frontend is responding' || echo '❌ Frontend is not responding'
+            curl -f http://localhost:8000/api/health >/dev/null 2>&1 && echo '✅ Backend is responding' || echo '❌ Backend is not responding'
+            
+            # Cleanup
+            rm -f *.tar deployment.tar
+          "
+          
+          # Cleanup local files
+          rm -f *.tar deployment.tar .docker.env
 
       - name: Deployment Complete
         run: |
-          echo '🚀 AWSSET deployed successfully!'
-          echo '📍 Frontend: http://localhost:3000'
-          echo '📍 Backend: http://localhost:8000'
-          echo '🔧 To check logs: docker compose logs'
+          echo '🚀 AWSSET deployed successfully to EC2!'
+          echo '📍 Frontend: http://${{ secrets.HOST_DEVELOPMENT }}:3000'
+          echo '📍 Backend: http://${{ secrets.HOST_DEVELOPMENT }}:8000'
+          echo '🔧 To check logs: ssh ubuntu@${{ secrets.HOST_DEVELOPMENT }} "cd ${{ env.REMOTE_DIR }} && docker compose logs"'
 
   # SonarQube Code Quality Analysis - DISABLED
   # sonarqube:
