@@ -95,28 +95,21 @@ jobs:
           echo '📦 Creating combined archive...'
           tar -czf images.tar frontend.tar backend.tar postgres.tar redis.tar
           
-          # Deploy to server
+          # Deploy to server - Simplified commands
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
-            # Setup Docker permissions
             sudo usermod -aG docker ubuntu || true
             sudo chmod 666 /var/run/docker.sock || true
-            
-            # Create directory
             sudo mkdir -p ${{ env.REMOTE_DIR }}
             sudo chown ubuntu:ubuntu ${{ env.REMOTE_DIR }}
-            
-            # Stop existing containers
             cd ${{ env.REMOTE_DIR }}
             docker compose down || true
-            
-            # Clean up old images
             docker system prune -a -f || true
           "
           
           # Copy files
           scp -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 images.tar docker-compose.yml .docker.env ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
           
-          # Deploy on server
+          # Deploy on server - Simplified commands to avoid syntax issues
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
             cd ${{ env.REMOTE_DIR }}
             
@@ -140,15 +133,11 @@ jobs:
             echo '📦 Loaded images:'
             docker images | grep awsset
             echo '📦 Database images:'
-            docker images | grep -E "(postgres|redis)"
+            docker images | grep -E '(postgres|redis)'
             
             # Start services
             echo '🚀 Starting services...'
-            timeout 300 docker compose up -d || {
-              echo '❌ Services failed to start within 5 minutes'
-              docker compose logs
-              exit 1
-            }
+            docker compose up -d
             
             # Wait for services to start
             echo '⏳ Waiting for services to start...'
@@ -160,17 +149,8 @@ jobs:
             
             # Check service health
             echo '🏥 Checking service health:'
-            if curl -f http://localhost:3000 >/dev/null 2>&1; then
-              echo '✅ Frontend is responding'
-            else
-              echo '❌ Frontend is not responding'
-            fi
-            
-            if curl -f http://localhost:8000/api/health >/dev/null 2>&1; then
-              echo '✅ Backend is responding'
-            else
-              echo '❌ Backend is not responding'
-            fi
+            curl -f http://localhost:3000 >/dev/null 2>&1 && echo '✅ Frontend is responding' || echo '❌ Frontend is not responding'
+            curl -f http://localhost:8000/api/health >/dev/null 2>&1 && echo '✅ Backend is responding' || echo '❌ Backend is not responding'
             
             # Cleanup
             rm -f frontend.tar backend.tar images.tar
