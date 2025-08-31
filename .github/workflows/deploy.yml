@@ -37,13 +37,24 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_KEY_DEVELOPMENT }}
 
       - name: Build and Deploy
+        timeout-minutes: 30
         run: |
           # Create environment file
           echo "${{ secrets.ENV_DEVELOPMENT }}" > .docker.env
           echo "PROJECT_NAME=${{ env.PROJECT_NAME }}" >> .docker.env
           
           # Build images with explicit naming
+          echo '🔨 Building frontend and backend images...'
           docker compose build --no-cache frontend backend
+          
+          # Check if any database images are being pulled
+          echo '🔍 Checking for database images...'
+          docker images | grep -E "(postgres|mysql|db|database)" || echo "No database images found"
+          
+          # Pre-pull database images to avoid timeouts during deployment
+          echo '📥 Pre-pulling database images...'
+          docker pull postgres:15-alpine || echo "Failed to pull postgres image"
+          docker pull redis:7-alpine || echo "Failed to pull redis image"
           
           # Get image names with explicit format
           FRONTEND_IMAGE="awsset-frontend:latest"
@@ -66,17 +77,26 @@ jobs:
           docker images | grep awsset
           
           # Save images with explicit names
+          echo '💾 Saving frontend image...'
           docker save -o frontend.tar $FRONTEND_IMAGE
+          
+          echo '💾 Saving backend image...'
           docker save -o backend.tar $BACKEND_IMAGE
           
+          echo '💾 Saving database images...'
+          docker save -o postgres.tar postgres:15-alpine
+          docker save -o redis.tar redis:7-alpine
+          
           # Verify tar files
+          echo '📋 Verifying tar files...'
           ls -la *.tar
           
           # Create combined archive
-          tar -czf images.tar frontend.tar backend.tar
+          echo '📦 Creating combined archive...'
+          tar -czf images.tar frontend.tar backend.tar postgres.tar redis.tar
           
           # Deploy to server
-          ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
             # Setup Docker permissions
             sudo usermod -aG docker ubuntu || true
             sudo chmod 666 /var/run/docker.sock || true
@@ -94,23 +114,41 @@ jobs:
           "
           
           # Copy files
-          scp -o StrictHostKeyChecking=no images.tar docker-compose.yml .docker.env ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 images.tar docker-compose.yml .docker.env ubuntu@${{ secrets.HOST_DEVELOPMENT }}:${{ env.REMOTE_DIR }}/
           
           # Deploy on server
-          ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=60 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ubuntu@${{ secrets.HOST_DEVELOPMENT }} "
             cd ${{ env.REMOTE_DIR }}
             
             # Extract and load images
+            echo '📦 Extracting images...'
             tar -xzf images.tar
+            
+            echo '📥 Loading frontend image...'
             docker load -i frontend.tar
+            
+            echo '📥 Loading backend image...'
             docker load -i backend.tar
+            
+            echo '📥 Loading postgres image...'
+            docker load -i postgres.tar
+            
+            echo '📥 Loading redis image...'
+            docker load -i redis.tar
             
             # Verify images loaded
             echo '📦 Loaded images:'
             docker images | grep awsset
+            echo '📦 Database images:'
+            docker images | grep -E "(postgres|redis)"
             
             # Start services
-            docker compose up -d
+            echo '🚀 Starting services...'
+            timeout 300 docker compose up -d || {
+              echo '❌ Services failed to start within 5 minutes'
+              docker compose logs
+              exit 1
+            }
             
             # Wait for services to start
             echo '⏳ Waiting for services to start...'
@@ -149,3 +187,77 @@ jobs:
           echo '📍 Frontend: http://${{ secrets.HOST_DEVELOPMENT }}'
           echo '📍 Backend: http://${{ secrets.HOST_DEVELOPMENT }}:8000'
           echo '🔧 To check logs: ssh ubuntu@${{ secrets.HOST_DEVELOPMENT }} "cd ${{ env.REMOTE_DIR }} && docker compose logs"'
+
+  # SonarQube Code Quality Analysis - DISABLED
+  # sonarqube:
+  #   needs: deploy
+  #   runs-on: ubuntu-22.04
+  #   if: success()
+  #   
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0  # Full history for SonarQube analysis
+  #     
+  #     - name: Setup Java
+  #       uses: actions/setup-java@v4
+  #       with:
+  #         distribution: 'temurin'
+  #         java-version: '17'
+  #     
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '18'
+  #         cache: 'npm'
+  #         cache-dependency-path: 'frontend/package-lock.json'
+  #     
+  #     - name: Install Python dependencies
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install -r backend/requirements.txt
+  #         pip install pytest pytest-cov coverage
+  #     
+  #     - name: Install Node.js dependencies
+  #       run: |
+  #         cd frontend
+  #         npm ci
+  #     
+  #     - name: Run Backend Tests with Coverage
+  #       run: |
+  #         cd backend
+  #         coverage run -m pytest tests/ -v --cov=. --cov-report=xml
+  #         coverage report
+  #     
+  #     - name: Run Frontend Tests
+  #       run: |
+  #         cd frontend
+  #         npm test -- --coverage --watchAll=false --passWithNoTests
+  #     
+  #     - name: SonarQube Analysis
+  #       uses: sonarqube-quality-gate-action@master
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #       with:
+  #         args: >
+  #           -Dsonar.projectKey=awsset
+  #           -Dsonar.projectName=AWSSET
+  #           -Dsonar.projectVersion=2.2.0
+  #           -Dsonar.sources=backend,frontend/src
+  #           -Dsonar.tests=backend/tests,frontend/src
+  #           -Dsonar.python.coverage.reportPaths=backend/coverage.xml
+  #           -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info
+  #           -Dsonar.exclusions=**/node_modules/**,**/*.pyc,**/venv/**,**/.env
+  #           -Dsonar.test.inclusions=**/*test*.py,**/*.test.js,**/*.spec.js
+  #           -Dsonar.qualitygate.wait=true
+  #           -Dsonar.organization=talatops
+  #           -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
+  #     
+  #     - name: SonarQube Quality Gate Status
+  #       run: |
+  #         echo "🔍 SonarQube analysis completed successfully!"
+  #         echo "📊 Code quality metrics have been analyzed"
+  #         echo "🏆 Quality gate status: PASSED"
+  #         echo "📈 Coverage reports generated for both backend and frontend"
