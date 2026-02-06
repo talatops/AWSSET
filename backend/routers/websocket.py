@@ -18,7 +18,7 @@ from utils.logger import get_aws_logger
 from services.aws.stats_service import AWSStatsService
 from services.aws.credential_manager import AWSCredentialManager
 from database import get_db, User
-from decouple import config
+from utils.config import AppConfig
 
 logger = get_aws_logger()
 security = HTTPBearer()
@@ -263,8 +263,12 @@ real_time_manager = RealTimeConnectionManager()
 async def get_user_from_token(token: str, db: Session) -> User:
     """Extract user from JWT token"""
     try:
-        SECRET_KEY = config('JWT_SECRET_KEY', default='your-secret-key-here')
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        # Use centralized application configuration for JWT validation.
+        # This will fail fast at startup if JWT_SECRET_KEY is not set.
+        SECRET_KEY = AppConfig.JWT_SECRET_KEY
+        ALGORITHM = AppConfig.JWT_ALGORITHM
+
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")

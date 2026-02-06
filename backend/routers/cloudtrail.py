@@ -53,7 +53,7 @@ async def get_cloudtrail_events(
     source_ips: Optional[List[str]] = Query(None, description="Filter by source IP addresses"),
     read_only: Optional[bool] = Query(None, description="Filter by read-only events"),
     management_event: Optional[bool] = Query(None, description="Filter by management events"),
-    max_results: int = Query(50, description="Maximum number of events to return"),
+    max_results: int = Query(50, ge=1, le=500, description="Maximum number of events to return (1-500)"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -139,7 +139,7 @@ async def search_events(
     query: str = Query(..., description="Search query for events"),
     start_time: Optional[str] = Query(None, description="Start time (ISO format)"),
     end_time: Optional[str] = Query(None, description="End time (ISO format)"),
-    max_results: int = Query(50, description="Maximum number of events to return"),
+    max_results: int = Query(50, ge=1, le=500, description="Maximum number of events to return (1-500)"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):

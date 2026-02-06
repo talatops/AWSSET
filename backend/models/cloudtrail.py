@@ -4,11 +4,9 @@ Stores CloudTrail events and AI analysis results
 """
 
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, JSON, ForeignKey, Float
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from datetime import datetime
-
-Base = declarative_base()
+from database import Base
 
 class CloudTrailEvent(Base):
     """CloudTrail event model for storing security logs"""

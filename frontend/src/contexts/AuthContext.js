@@ -2,7 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useCallback } 
 import axios from 'axios';
 import jwtDecode from 'jwt-decode';
 import { toast } from 'react-toastify';
-import { getApiUrl } from '../utils/env';
+import { getApiUrl, debugLog } from '../utils/env';
 
 const AuthContext = createContext();
 
@@ -339,17 +339,17 @@ export const AuthProvider = ({ children }) => {
 
   const handleOAuthCallback = useCallback(async (code, state, provider) => {
     try {
-      console.log('AuthContext - Starting OAuth callback for:', provider);
+      debugLog('AuthContext - Starting OAuth callback for:', provider);
       dispatch({ type: AUTH_ACTIONS.LOGIN_START });
 
-      console.log('AuthContext - Making API call to:', `${API_BASE_URL}/api/auth/oauth/callback`);
+      debugLog('AuthContext - Making API call to:', `${API_BASE_URL}/api/auth/oauth/callback`);
       const response = await api.post('/api/auth/oauth/callback', {
         code,
         state,
         provider,
       });
 
-      console.log('AuthContext - OAuth callback response received:', response.status);
+      debugLog('AuthContext - OAuth callback response received:', response.status);
       const { access_token, refresh_token, user } = response.data;
 
       // Store tokens

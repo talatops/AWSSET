@@ -41,7 +41,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import notificationService from '../../services/notificationService';
-
+import { debugLog } from '../../utils/env';
 
 // Dashboard components
 import Overview from './Overview';
@@ -105,7 +105,7 @@ const Dashboard = () => {
     let isMounted = true;
     
     if (wsSystemStatus && JSON.stringify(wsSystemStatus) !== JSON.stringify(memoizedSystemStatus)) {
-      console.log('🔧 Updating system status from WebSocket:', wsSystemStatus);
+      debugLog('🔧 Updating system status from WebSocket:', wsSystemStatus);
       if (isMounted) {
         setSystemStatus(wsSystemStatus);
       }
@@ -134,7 +134,7 @@ const Dashboard = () => {
       
       // Skip status checks if user is on Settings page to prevent blinking
       if (location.pathname.includes('/settings')) {
-        console.log('🔧 Skipping status check - user on Settings page');
+        debugLog('🔧 Skipping status check - user on Settings page');
         return;
       }
       

@@ -41,6 +41,9 @@ class AWSRegionsResponse(BaseModel):
     success: bool
     regions: Dict[str, str]
 
+class RegionUpdateRequest(BaseModel):
+    region: str = Field(..., min_length=2, max_length=32, description="New default AWS region (e.g. us-east-1)")
+
 @router.post("/credentials", response_model=AWSCredentialsResponse)
 async def store_aws_credentials(
     credentials: AWSCredentialsRequest,
@@ -178,6 +181,14 @@ async def test_aws_permissions(
     Can accept credentials in request body (for setup wizard) or use stored credentials
     """
     try:
+        # Basic validation for service name to avoid arbitrary values
+        valid_services = {"ec2"}
+        if service not in valid_services:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid service. Supported services for permission tests: {', '.join(sorted(valid_services))}"
+            )
+
         credential_manager = AWSCredentialManager()
         
         # Use provided credentials or get stored ones
@@ -270,7 +281,7 @@ async def get_aws_regions():
 
 @router.put("/region")
 async def update_aws_region(
-    region: str,
+    payload: RegionUpdateRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -279,13 +290,13 @@ async def update_aws_region(
     """
     try:
         # Update user's default region
-        current_user.aws_region = region
+        current_user.aws_region = payload.region
         db.commit()
         
         return {
             "success": True,
-            "message": f"Default AWS region updated to {region}",
-            "region": region
+            "message": f"Default AWS region updated to {payload.region}",
+            "region": payload.region
         }
         
     except Exception as e:

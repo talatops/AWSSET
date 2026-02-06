@@ -1,4 +1,5 @@
 import { toast } from 'react-toastify';
+import { debugLog } from '../utils/env';
 
 class NotificationService {
   constructor() {
@@ -25,10 +26,10 @@ class NotificationService {
       this.permission = permission;
       
       if (permission === 'granted') {
-        console.log('Notification permission granted');
+        debugLog('Notification permission granted');
         return true;
       } else {
-        console.log('Notification permission denied');
+        debugLog('Notification permission denied');
         return false;
       }
     } catch (error) {
@@ -229,7 +230,7 @@ class NotificationService {
       // Update permission if notifications were disabled
       if (!preferences.notifications && this.permission === 'granted') {
         // Note: We can't revoke permission, but we can stop showing notifications
-        console.log('Notifications disabled by user preference');
+        debugLog('Notifications disabled by user preference');
       }
     } catch (error) {
       console.error('Error saving notification preferences:', error);

@@ -162,6 +162,8 @@ class AppConfig:
     GOOGLE_CLIENT_SECRET = cfg.get("GOOGLE_CLIENT_SECRET", default="")
     PROTON_CLIENT_ID = cfg.get("PROTON_CLIENT_ID", default="")
     PROTON_CLIENT_SECRET = cfg.get("PROTON_CLIENT_SECRET", default="")
+    GOOGLE_REDIRECT_URI = cfg.get("GOOGLE_REDIRECT_URI", default="http://localhost:3000/auth/google/callback")
+    PROTON_REDIRECT_URI = cfg.get("PROTON_REDIRECT_URI", default="http://localhost:3000/auth/proton/callback")
     
     # AWS Configuration
     AWS_ACCESS_KEY_ID = cfg.get("AWS_ACCESS_KEY_ID", default="")
@@ -171,6 +173,8 @@ class AppConfig:
     AWS_CREDENTIALS_TIMEOUT = cfg.get_int("AWS_CREDENTIALS_TIMEOUT", default=30)
     AWS_MAX_RETRIES = cfg.get_int("AWS_MAX_RETRIES", default=3)
     AWS_BOTO3_SESSION_CACHE_TTL = cfg.get_int("AWS_BOTO3_SESSION_CACHE_TTL", default=3600)
+    # Common defaults for AWS resources (can be overridden per environment)
+    DEFAULT_EC2_AMI = cfg.get("DEFAULT_EC2_AMI", default="ami-0c02fb55956c7d316")
     
     # Email Configuration
     SMTP_SERVER = cfg.get("SMTP_SERVER", default="smtp.gmail.com")

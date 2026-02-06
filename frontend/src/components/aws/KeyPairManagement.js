@@ -49,6 +49,7 @@ import { motion } from 'framer-motion';
 import { useEC2 } from '../../hooks/useAWS';
 import { useTheme } from '../../contexts/ThemeContext';
 import { toast } from 'react-toastify';
+import { debugLog } from '../../utils/env';
 
 const KeyPairManagement = () => {
   const { listKeyPairs, createKeyPair, deleteKeyPair, loading, error } = useEC2();
@@ -383,7 +384,7 @@ const KeyPairManagement = () => {
         </MenuItem>
         
         <MenuItem onClick={() => {
-          console.log('Download public key:', selectedKeyPair?.key_name);
+          debugLog('Download public key:', selectedKeyPair?.key_name);
           handleMenuClose();
         }}>
           <ListItemIcon><Download /></ListItemIcon>

@@ -43,6 +43,7 @@ import {
 import { motion } from 'framer-motion';
 import { useEC2 } from '../../hooks/useAWS';
 import { useTheme } from '../../contexts/ThemeContext';
+import { debugLog } from '../../utils/env';
 
 const AMIManagement = () => {
   const { listAMIs, loading, error } = useEC2();
@@ -312,7 +313,7 @@ const AMIManagement = () => {
                             color="primary"
                             onClick={() => {
                               // TODO: Integrate with instance creation
-                              console.log('Launch instance with AMI:', ami.image_id);
+                              debugLog('Launch instance with AMI:', ami.image_id);
                             }}
                           >
                             <Launch />
@@ -353,7 +354,7 @@ const AMIManagement = () => {
         onClose={handleMenuClose}
       >
         <MenuItem onClick={() => {
-          console.log('View AMI details:', selectedAMI?.image_id);
+          debugLog('View AMI details:', selectedAMI?.image_id);
           handleMenuClose();
         }}>
           <ListItemIcon><Search /></ListItemIcon>
@@ -361,7 +362,7 @@ const AMIManagement = () => {
         </MenuItem>
         
         <MenuItem onClick={() => {
-          console.log('Launch instance with AMI:', selectedAMI?.image_id);
+          debugLog('Launch instance with AMI:', selectedAMI?.image_id);
           handleMenuClose();
         }}>
           <ListItemIcon><Launch /></ListItemIcon>

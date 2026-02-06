@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { useAuth } from './AuthContext';
+import { debugLog } from '../utils/env';
 
 const WebSocketContext = createContext();
 
@@ -40,12 +41,12 @@ export const WebSocketProvider = ({ children }) => {
     try {
       // For WebSocket endpoint, we need to use a different approach
       const wsUrl = `${WEBSOCKET_URL}?token=${encodeURIComponent(token)}`;
-      console.log('🔗 Connecting to WebSocket:', wsUrl);
+      debugLog('🔗 Connecting to WebSocket:', wsUrl);
       
       const newSocket = new WebSocket(wsUrl);
       
       newSocket.onopen = () => {
-        console.log('WebSocket connected');
+        debugLog('WebSocket connected');
         if (!isUnmountedRef.current) {
           setConnected(true);
           setSocket(newSocket);
@@ -63,7 +64,7 @@ export const WebSocketProvider = ({ children }) => {
       };
 
       newSocket.onclose = (event) => {
-        console.log('WebSocket disconnected:', event.reason);
+        debugLog('WebSocket disconnected:', event.reason);
         stopPingInterval();
         
         if (!isUnmountedRef.current) {
@@ -72,7 +73,7 @@ export const WebSocketProvider = ({ children }) => {
 
           if (event.code === 1008 || event.code === 1011) {
             // Server initiated disconnect, don't reconnect
-            console.log('Server disconnected WebSocket');
+            debugLog('Server disconnected WebSocket');
           } else {
             // Connection lost, attempt to reconnect
             scheduleReconnect();
@@ -108,28 +109,28 @@ export const WebSocketProvider = ({ children }) => {
   };
 
   const handleWebSocketMessage = (data) => {
-    console.log('📨 Received WebSocket message:', data);
+    debugLog('📨 Received WebSocket message:', data);
     
     // Check if component is still mounted before updating state
     if (isUnmountedRef.current) {
-      console.log('📨 Component unmounted, skipping message processing');
+      debugLog('📨 Component unmounted, skipping message processing');
       return;
     }
     
     // Skip system status updates if user is on Settings page to prevent blinking
     if (data.type === 'system_status_update' && isOnSettingsPage()) {
-      console.log('🔧 Skipping system status update - user on Settings page');
+      debugLog('🔧 Skipping system status update - user on Settings page');
       return;
     }
     
     switch (data.type) {
       case 'aws_stats_update':
-        console.log('📊 Updating AWS stats:', data.data);
+        debugLog('📊 Updating AWS stats:', data.data);
         setAwsStats(data.data);
         break;
         
       case 'system_status_update':
-        console.log('🔧 Updating system status:', data.data);
+        debugLog('🔧 Updating system status:', data.data);
         // Debounce system status updates to prevent rapid re-renders
         if (systemStatusUpdateTimeoutRef.current) {
           clearTimeout(systemStatusUpdateTimeoutRef.current);
@@ -138,10 +139,10 @@ export const WebSocketProvider = ({ children }) => {
           // Only update if the status actually changed
           setSystemStatus(prevStatus => {
             if (JSON.stringify(prevStatus) === JSON.stringify(data.data)) {
-              console.log('🔧 System status unchanged, skipping update');
+              debugLog('🔧 System status unchanged, skipping update');
               return prevStatus;
             }
-            console.log('🔧 System status changed, updating');
+            debugLog('🔧 System status changed, updating');
             return data.data;
           });
         }, 1000); // Wait 1 second before updating
@@ -152,7 +153,7 @@ export const WebSocketProvider = ({ children }) => {
         break;
         
       case 'pong':
-        console.log('🏓 Received pong');
+        debugLog('🏓 Received pong');
         break;
         
       case 'message':
@@ -171,7 +172,7 @@ export const WebSocketProvider = ({ children }) => {
         break;
         
       default:
-        console.log('🔍 Unknown message type:', data.type, data);
+        debugLog('🔍 Unknown message type:', data.type, data);
     }
   };
 
@@ -243,7 +244,7 @@ export const WebSocketProvider = ({ children }) => {
       if (socket && socket.readyState === WebSocket.OPEN && !isUnmountedRef.current) {
         try {
           socket.send(JSON.stringify({ type: 'ping' }));
-          console.log('🏓 Sent ping');
+          debugLog('🏓 Sent ping');
         } catch (error) {
           console.error('Failed to send ping:', error);
         }
@@ -275,7 +276,7 @@ export const WebSocketProvider = ({ children }) => {
     const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000); // Exponential backoff, max 30s
     reconnectAttempts.current += 1;
 
-    console.log(`Scheduling reconnection attempt ${reconnectAttempts.current} in ${delay}ms`);
+    debugLog(`Scheduling reconnection attempt ${reconnectAttempts.current} in ${delay}ms`);
 
     reconnectTimeoutRef.current = setTimeout(() => {
       if (isAuthenticated && token && !isUnmountedRef.current) {
@@ -360,12 +361,12 @@ export const WebSocketProvider = ({ children }) => {
   };
 
   const requestAwsStats = () => {
-    console.log('📡 Requesting AWS stats via WebSocket...');
+    debugLog('📡 Requesting AWS stats via WebSocket...');
     return sendWebSocketMessage('request_aws_stats');
   };
 
   const requestSystemStatus = () => {
-    console.log('📡 Requesting system status via WebSocket...');
+    debugLog('📡 Requesting system status via WebSocket...');
     return sendWebSocketMessage('request_system_status');
   };
 

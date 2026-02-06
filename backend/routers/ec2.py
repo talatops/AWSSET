@@ -44,6 +44,14 @@ class CreateInstanceRequest(BaseModel):
 class InstanceActionRequest(BaseModel):
     force: Optional[bool] = Field(False, description="Force the action")
 
+class KeyPairCreateRequest(BaseModel):
+    key_name: str = Field(..., min_length=1, max_length=255, description="EC2 key pair name")
+    key_type: str = Field(
+        "rsa",
+        description="Key pair type",
+        pattern="^(rsa|ed25519)$",
+    )
+
 class AMIFilters(BaseModel):
     name: Optional[str] = Field(None, description="Filter by AMI name")
     architecture: Optional[str] = Field(None, description="Filter by architecture")
@@ -482,7 +490,7 @@ async def list_key_pairs(
 
 @router.post("/key-pairs")
 async def create_key_pair(
-    key_pair_data: dict,
+    key_pair_data: KeyPairCreateRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -492,8 +500,8 @@ async def create_key_pair(
     try:
         ec2_service = EC2Service(db, current_user.id)
         result = ec2_service.create_key_pair(
-            key_name=key_pair_data.get('key_name'),
-            key_type=key_pair_data.get('key_type', 'rsa')
+            key_name=key_pair_data.key_name,
+            key_type=key_pair_data.key_type
         )
         
         if result['success']:

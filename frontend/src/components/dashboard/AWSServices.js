@@ -43,6 +43,7 @@ import EC2Instances from '../aws/EC2Instances';
 import AMIManagement from '../aws/AMIManagement';
 import SecurityGroupManagement from '../aws/SecurityGroupManagement';
 import KeyPairManagement from '../aws/KeyPairManagement';
+import { debugLog } from '../../utils/env';
 
 // Mock AWS services data
 const awsServices = [
@@ -532,7 +533,7 @@ const AWSServices = () => {
     if (action === 'view') {
       setServiceDialog({ open: true, service: serviceName });
     } else {
-      console.log(`Action ${action} on service ${serviceName}`);
+      debugLog(`Action ${action} on service ${serviceName}`);
     }
   };
 

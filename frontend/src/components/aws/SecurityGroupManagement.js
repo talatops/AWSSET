@@ -49,6 +49,7 @@ import {
 import { motion } from 'framer-motion';
 import { useEC2 } from '../../hooks/useAWS';
 import { useTheme } from '../../contexts/ThemeContext';
+import { debugLog } from '../../utils/env';
 
 const SecurityGroupManagement = () => {
   const { listSecurityGroups, loading, error } = useEC2();
@@ -154,7 +155,7 @@ const SecurityGroupManagement = () => {
           <Button
             variant="contained"
             startIcon={<Add />}
-            onClick={() => console.log('Create new security group')}
+            onClick={() => debugLog('Create new security group')}
           >
             Create Security Group
           </Button>
@@ -320,7 +321,7 @@ const SecurityGroupManagement = () => {
         </MenuItem>
         
         <MenuItem onClick={() => {
-          console.log('Edit security group:', selectedGroup?.group_id);
+          debugLog('Edit security group:', selectedGroup?.group_id);
           handleMenuClose();
         }}>
           <ListItemIcon><Edit /></ListItemIcon>
@@ -329,7 +330,7 @@ const SecurityGroupManagement = () => {
         
         <MenuItem 
           onClick={() => {
-            console.log('Delete security group:', selectedGroup?.group_id);
+            debugLog('Delete security group:', selectedGroup?.group_id);
             handleMenuClose();
           }}
           sx={{ color: 'error.main' }}
@@ -413,7 +414,7 @@ const SecurityGroupManagement = () => {
           <Button
             variant="contained"
             onClick={() => {
-              console.log('Edit rules for:', selectedGroup?.group_id);
+              debugLog('Edit rules for:', selectedGroup?.group_id);
               setDetailsDialog(false);
             }}
           >

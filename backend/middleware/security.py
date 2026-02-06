@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import json
 
 from utils.logger import get_security_logger, log_security_event
+from utils.config import AppConfig
 
 logger = get_security_logger()
 
@@ -135,21 +136,38 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         logger.warning(f"IP {ip} blocked for {self.block_duration} seconds")
     
     def _check_rate_limit(self, ip: str) -> bool:
-        """Check rate limiting for IP"""
-        now = time.time()
-        window_start = now - self.rate_limit_window
-        
-        # Clean old requests
-        while self.rate_limit_storage[ip] and self.rate_limit_storage[ip][0] < window_start:
-            self.rate_limit_storage[ip].popleft()
-        
-        # Check if under limit
-        if len(self.rate_limit_storage[ip]) >= self.rate_limit_requests:
-            return False
-        
-        # Add current request
-        self.rate_limit_storage[ip].append(now)
-        return True
+        """Check rate limiting for IP (fallback to in-memory if Redis unavailable)"""
+        # Try Redis-based rate limiting first
+        try:
+            import redis
+            redis_client = redis.from_url(AppConfig.REDIS_URL, decode_responses=True, socket_connect_timeout=1)
+            redis_client.ping()
+            
+            # Use Redis for distributed rate limiting
+            from middleware.rate_limiter import RedisRateLimiter
+            rate_limiter = RedisRateLimiter()
+            is_allowed, _ = rate_limiter.check_rate_limit(
+                key=ip,
+                limit=self.rate_limit_requests,
+                window=self.rate_limit_window
+            )
+            return is_allowed
+        except Exception:
+            # Fallback to in-memory rate limiting
+            now = time.time()
+            window_start = now - self.rate_limit_window
+            
+            # Clean old requests
+            while self.rate_limit_storage[ip] and self.rate_limit_storage[ip][0] < window_start:
+                self.rate_limit_storage[ip].popleft()
+            
+            # Check if under limit
+            if len(self.rate_limit_storage[ip]) >= self.rate_limit_requests:
+                return False
+            
+            # Add current request
+            self.rate_limit_storage[ip].append(now)
+            return True
     
     async def _validate_request_content(self, request: Request, client_ip: str):
         """Validate request content for suspicious patterns"""

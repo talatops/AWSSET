@@ -1,1 +1,3 @@
-# Router package initialization
+"""
+API Routers Package
+"""

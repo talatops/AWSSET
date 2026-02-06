@@ -110,6 +110,15 @@ export const getApiUrl = () => {
   return 'http://localhost:8000';
 };
 
+export const debugLog = (...args) => {
+  // Centralized debug logger so we can easily suppress verbose logs
+  // in production while keeping useful information in development.
+  if (isDevelopment()) {
+    // eslint-disable-next-line no-console
+    console.debug(...args);
+  }
+};
+
 // Suppress source map errors in development
 if (typeof window !== 'undefined') {
   // Override console.error to filter out source map errors
@@ -142,7 +151,7 @@ if (typeof window !== 'undefined') {
     if (event.message.includes('process is not defined') || 
         event.message.includes('Buffer is not defined')) {
       event.preventDefault();
-      console.log('🔧 Suppressed polyfill error:', event.message);
+      debugLog('🔧 Suppressed polyfill error:', event.message);
       return false;
     }
   });
@@ -153,7 +162,7 @@ if (typeof window !== 'undefined') {
         (event.reason.message.includes('process is not defined') || 
          event.reason.message.includes('Buffer is not defined'))) {
       event.preventDefault();
-      console.log('🔧 Suppressed polyfill rejection:', event.reason.message);
+      debugLog('🔧 Suppressed polyfill rejection:', event.reason.message);
       return false;
     }
   });

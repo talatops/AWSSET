@@ -43,6 +43,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAWS } from '../../hooks/useAWS';
 import { useWebSocket } from '../../contexts/WebSocketContext';
+import { debugLog } from '../../utils/env';
 
 // Helper function to parse service costs safely
 const parseServiceCost = (cost) => {
@@ -332,7 +333,7 @@ const Overview = () => {
     let isMounted = true;
     
     if (awsStats && isMounted) {
-      console.log('🔄 Received real-time AWS stats update:', awsStats);
+      debugLog('🔄 Received real-time AWS stats update:', awsStats);
       const processedData = generateRealData(awsStats);
       setData(processedData);
       setLastUpdate(new Date());
@@ -368,7 +369,7 @@ const Overview = () => {
     let isMounted = true;
     
     if (connected && credentials?.has_credentials && isMounted) {
-      console.log('🔗 WebSocket connected, requesting AWS stats...');
+      debugLog('🔗 WebSocket connected, requesting AWS stats...');
       requestAwsStats();
     }
     
@@ -404,7 +405,7 @@ const Overview = () => {
   const refreshData = async () => {
     if (connected && credentials?.has_credentials) {
       // Use WebSocket for real-time refresh
-      console.log('🔄 Requesting fresh AWS stats via WebSocket...');
+      debugLog('🔄 Requesting fresh AWS stats via WebSocket...');
       requestAwsStats();
     } else if (credentials?.has_credentials) {
       // Fallback to HTTP

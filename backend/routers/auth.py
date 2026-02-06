@@ -5,10 +5,12 @@ Handles login, registration, OAuth, and token management
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 import secrets
+import jwt
 from datetime import datetime
 
 from database import get_db, User
@@ -18,6 +20,7 @@ from utils.auth import (
     get_current_user, get_current_active_user
 )
 from utils.logger import get_auth_logger, log_security_event
+from utils.config import AppConfig
 
 logger = get_auth_logger()
 router = APIRouter()
@@ -64,40 +67,99 @@ class ProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     aws_region: Optional[str] = None
 
-# File-based state storage for development (in production, use Redis)
 import json
 import os
 from pathlib import Path
 
+import redis
+from utils.config import AppConfig
+
+# OAuth state storage (Redis first, file-based fallback)
 STATE_FILE = Path("/tmp/oauth_states.json")
 
+def _get_redis_client():
+    """Create a Redis client for OAuth state and token management."""
+    try:
+        return redis.from_url(AppConfig.REDIS_URL, decode_responses=True)
+    except Exception as e:
+        logger.warning(f"Redis not available for OAuth state storage: {e}")
+        return None
+
+redis_client = _get_redis_client()
+
+def _oauth_state_key(state: str) -> str:
+    return f"oauth_state:{state}"
+
 def get_oauth_states():
-    """Get OAuth states from file"""
+    """Get all OAuth states (primarily for debugging)."""
+    # Prefer Redis if available
+    if redis_client:
+        try:
+            keys = redis_client.keys(_oauth_state_key("*"))
+            states = {}
+            for key in keys:
+                raw = redis_client.get(key)
+                if not raw:
+                    continue
+                try:
+                    state_id = key.split("oauth_state:")[1]
+                    states[state_id] = json.loads(raw)
+                except Exception:
+                    continue
+            return states
+        except Exception as e:
+            logger.error(f"Failed to read OAuth states from Redis: {e}")
+    # Fallback to file-based storage
     try:
         if STATE_FILE.exists():
-            with open(STATE_FILE, 'r') as f:
+            with open(STATE_FILE, "r") as f:
                 return json.load(f)
     except Exception:
         pass
     return {}
 
+def get_oauth_state(state: str):
+    """Get a single OAuth state."""
+    if redis_client:
+        try:
+            raw = redis_client.get(_oauth_state_key(state))
+            if raw:
+                return json.loads(raw)
+        except Exception as e:
+            logger.error(f"Failed to get OAuth state from Redis: {e}")
+    # Fallback to file
+    states = get_oauth_states()
+    return states.get(state)
+
 def save_oauth_state(state, data):
-    """Save OAuth state to file"""
+    """Save OAuth state (Redis with TTL, file fallback)."""
+    if redis_client:
+        try:
+            # Store state for 10 minutes by default
+            redis_client.setex(_oauth_state_key(state), 600, json.dumps(data))
+            return
+        except Exception as e:
+            logger.error(f"Failed to save OAuth state to Redis, falling back to file: {e}")
     try:
         states = get_oauth_states()
         states[state] = data
-        with open(STATE_FILE, 'w') as f:
+        with open(STATE_FILE, "w") as f:
             json.dump(states, f)
     except Exception as e:
         logger.error(f"Failed to save OAuth state: {e}")
 
 def remove_oauth_state(state):
-    """Remove OAuth state from file"""
+    """Remove OAuth state."""
+    if redis_client:
+        try:
+            redis_client.delete(_oauth_state_key(state))
+        except Exception as e:
+            logger.error(f"Failed to remove OAuth state from Redis: {e}")
     try:
         states = get_oauth_states()
         if state in states:
             del states[state]
-            with open(STATE_FILE, 'w') as f:
+            with open(STATE_FILE, "w") as f:
                 json.dump(states, f)
     except Exception as e:
         logger.error(f"Failed to remove OAuth state: {e}")
@@ -207,7 +269,7 @@ async def google_oauth_init():
     save_oauth_state(state, {"provider": "google", "created_at": datetime.utcnow().isoformat()})
     
     # Google OAuth URL
-    redirect_uri = "http://localhost:3000/auth/google/callback"
+    redirect_uri = AppConfig.GOOGLE_REDIRECT_URI
     google_auth_url = (
         f"https://accounts.google.com/o/oauth2/auth?"
         f"client_id={GoogleOAuth.GOOGLE_CLIENT_ID}&"
@@ -234,7 +296,7 @@ async def proton_oauth_init():
     save_oauth_state(state, {"provider": "proton", "created_at": datetime.utcnow().isoformat()})
     
     # Proton OAuth URL (may not work on free tier)
-    redirect_uri = "http://localhost:3000/auth/proton/callback"
+    redirect_uri = AppConfig.PROTON_REDIRECT_URI
     proton_auth_url = (
         f"https://account.proton.me/oauth/authorize?"
         f"client_id={ProtonOAuth.PROTON_CLIENT_ID}&"
@@ -287,12 +349,12 @@ async def oauth_callback(callback_data: OAuthCallback, db: Session = Depends(get
     try:
         # Exchange code for token based on provider
         if callback_data.provider == "google":
-            redirect_uri = "http://localhost:3000/auth/google/callback"
+            redirect_uri = AppConfig.GOOGLE_REDIRECT_URI
             token_data = GoogleOAuth.exchange_code_for_token(callback_data.code, redirect_uri)
             user_info = GoogleOAuth.get_user_info(token_data["access_token"])
             
         elif callback_data.provider == "proton":
-            redirect_uri = "http://localhost:3000/auth/proton/callback"
+            redirect_uri = AppConfig.PROTON_REDIRECT_URI
             token_data = ProtonOAuth.exchange_code_for_token(callback_data.code, redirect_uri)
             user_info = ProtonOAuth.get_user_info(token_data["access_token"])
             
@@ -493,12 +555,28 @@ async def update_user_profile(
     )
 
 @router.post("/logout")
-async def logout_user(current_user: User = Depends(get_current_active_user)):
-    """Logout user (invalidate tokens)"""
-    # In a production system, you'd maintain a blacklist of invalidated tokens
-    # For now, we'll just log the logout event
+async def logout_user(
+    current_user: User = Depends(get_current_active_user),
+    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
+):
+    """Logout user and invalidate the current access token via a blacklist."""
+    token = credentials.credentials
+
+    # Blacklist the token using Redis if available so it cannot be reused
+    if redis_client:
+        try:
+            # Decode without verifying signature/expiry to extract exp
+            decoded = jwt.decode(token, options={"verify_signature": False, "verify_exp": False})
+            exp_timestamp = decoded.get("exp")
+            ttl = max(int(exp_timestamp - datetime.utcnow().timestamp()), 0) if exp_timestamp else 0
+            blacklist_key = f"jwt_blacklist:{token}"
+            redis_client.set(blacklist_key, "1")
+            if ttl > 0:
+                redis_client.expire(blacklist_key, ttl)
+        except Exception as e:
+            logger.error(f"Failed to blacklist JWT on logout: {e}")
+
     log_security_event(logger, "user_logout", user_id=str(current_user.id))
-    
     return {"message": "Successfully logged out"}
 
 @router.get("/oauth/status")

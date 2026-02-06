@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, CircularProgress, Typography, Alert, Button } from '@mui/material';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
+import { debugLog } from '../../utils/env';
 
 // Global flag to prevent multiple OAuth callback executions
 let isOAuthCallbackProcessing = false;
@@ -18,7 +19,7 @@ const OAuthCallback = ({ provider }) => {
     const processCallback = async () => {
       // Prevent multiple executions using global flag
       if (isOAuthCallbackProcessing) {
-        console.log('OAuth Callback - Already processing, skipping...');
+        debugLog('OAuth Callback - Already processing, skipping...');
         return;
       }
 
@@ -29,7 +30,7 @@ const OAuthCallback = ({ provider }) => {
         const state = searchParams.get('state');
         const error = searchParams.get('error');
 
-        console.log('OAuth Callback - Processing:', { code: code?.substring(0, 10) + '...', state: state?.substring(0, 10) + '...', error, provider });
+        debugLog('OAuth Callback - Processing:', { code: code?.substring(0, 10) + '...', state: state?.substring(0, 10) + '...', error, provider });
 
         if (error) {
           throw new Error(`OAuth error: ${error}`);
@@ -39,10 +40,10 @@ const OAuthCallback = ({ provider }) => {
           throw new Error('Missing authorization code or state parameter');
         }
 
-        console.log('OAuth Callback - Calling handleOAuthCallback...');
+        debugLog('OAuth Callback - Calling handleOAuthCallback...');
         await handleOAuthCallback(code, state, provider);
         
-        console.log('OAuth Callback - Success! Redirecting to dashboard...');
+        debugLog('OAuth Callback - Success! Redirecting to dashboard...');
         // Success - redirect to dashboard
         navigate('/dashboard', { replace: true });
         

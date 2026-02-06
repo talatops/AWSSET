@@ -3,11 +3,11 @@
 <div align="center">
 
 <!-- AWSSET Logo -->
-<img src="logo/awsset-logo-genz.svg" alt="AWSSET Logo" width="360" height="120">
+<img src="/frontend/public/favicon.svg" alt="AWSSET Logo" width="360" height="120">
 
 <br>
 
-![Version](https://img.shields.io/badge/version-2.2.0-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-2.3.0-blue?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 
 **Revolutionize your AWS management with AI-powered cloud mastery**
@@ -60,18 +60,20 @@ AWSSET is a comprehensive, AI-powered platform that transforms how you interact 
 - **🚨 Anomaly Detection**: Advanced pattern recognition for suspicious activity
 - **📊 Security Intelligence**: Comprehensive security reporting and compliance tools
 
-### 💰 **Cost Management**
+### 💰 **Cost Management** ✅
 - **Budget Monitoring**: Intelligent budget alerts and forecasting
 - **Usage Analytics**: Detailed cost breakdown and trend analysis
 - **Optimization Recommendations**: AI-powered cost-saving suggestions
 - **Unused Resource Detection**: Automatic identification of idle resources
+- **Cost API**: Complete REST API for cost management operations
 
-### 🏗️ **Infrastructure Management**
+### 🏗️ **Infrastructure Management** ✅
 - **EC2 Management**: Complete instance lifecycle management
-- **S3 Operations**: Bucket management and file operations
-- **Lambda Functions**: Serverless function deployment and monitoring
-- **RDS Databases**: Database provisioning and management
+- **S3 Operations**: Full bucket and object management with API endpoints
+- **Lambda Functions**: Complete function management, invocation, and metrics
+- **RDS Databases**: Full database instance lifecycle management
 - **IAM Security**: User, role, and policy management
+- **Resource Tracking**: Automatic database tracking of all AWS resources
 
 ### 🔮 **AI-Powered Predictive Operations** *(Coming Soon)*
 - **Predictive Scaling**: AI predicts when you'll need more resources
@@ -123,19 +125,22 @@ AWSSET is a comprehensive, AI-powered platform that transforms how you interact 
 - **Animation**: Framer Motion for smooth UX
 
 #### **Backend**
-- **Framework**: FastAPI (Python 3.9+)
-- **Database**: PostgreSQL with SQLAlchemy ORM
-- **Authentication**: JWT with OAuth integration
+- **Framework**: FastAPI (Python 3.11)
+- **Database**: PostgreSQL 15 with SQLAlchemy ORM and Alembic migrations
+- **Authentication**: JWT with OAuth integration and token blacklist
 - **AI Engine**: Groq API for natural language processing
 - **AWS SDK**: boto3 for AWS service integration
 - **Real-time**: WebSocket for live data streaming
+- **Caching**: Redis for distributed rate limiting and session management
+- **Testing**: Pytest with coverage reporting
 
 #### **Infrastructure**
-- **Containerization**: Docker & Docker Compose
-- **Database**: PostgreSQL 13+
-- **Caching**: Redis for session management
+- **Containerization**: Docker & Docker Compose with optimized builds
+- **Database**: PostgreSQL 15-alpine with automatic migrations
+- **Caching**: Redis 7-alpine for distributed rate limiting and sessions
 - **Web Server**: Nginx for production deployment
-- **Monitoring**: Structured logging with JSON output
+- **Monitoring**: Structured logging with health checks and metrics endpoints
+- **CI/CD**: GitHub Actions for automated testing and builds
 
 ---
 
@@ -284,6 +289,23 @@ Your AWS credentials need the following permissions:
 "Create a bucket called my-app-data"
 "List files in my-documents bucket"
 "Delete the old-backup bucket"
+"List objects in bucket-name"
+```
+
+#### **Lambda Operations**
+```
+"List my Lambda functions"
+"Show details for function my-function"
+"Invoke function my-function with payload"
+"Get metrics for function my-function"
+```
+
+#### **RDS Operations**
+```
+"List my RDS databases"
+"Create a MySQL database instance"
+"Show details for database db-instance-1"
+"Delete database instance db-instance-1"
 ```
 
 #### **Cost Management**
@@ -368,28 +390,37 @@ npm start
 
 ### **Database Migrations**
 ```bash
+# Migrations run automatically on Docker startup
+# Or manually:
+
 # Create new migration
-alembic revision --autogenerate -m "Description"
+docker compose exec backend alembic revision --autogenerate -m "Description"
 
 # Apply migrations
-alembic upgrade head
+docker compose exec backend alembic upgrade head
 
 # Rollback migration
-alembic downgrade -1
+docker compose exec backend alembic downgrade -1
+
+# Check current migration version
+docker compose exec backend alembic current
 ```
 
 ### **Testing**
 ```bash
-# Backend tests
+# Backend tests with coverage
 cd backend
-pytest
+pytest tests/ -v --cov=. --cov-report=html
 
 # Frontend tests
 cd frontend
-npm test
+npm test -- --coverage --watchAll=false
 
-# Integration tests
-docker-compose -f docker-compose.test.yml up --abort-on-container-exit
+# Run tests in Docker
+docker compose exec backend pytest tests/ -v
+docker compose exec frontend npm test -- --watchAll=false
+
+# CI/CD tests run automatically on GitHub Actions
 ```
 
 ### **Code Quality**
@@ -421,8 +452,10 @@ docker-compose logs -f frontend
 ```
 
 ### **Health Checks**
-- **Backend Health**: `GET /api/health`
-- **Database Health**: `GET /api/health/db`
+- **Backend Health**: `GET /api/health` (includes database and Redis status)
+- **System Metrics**: `GET /api/metrics` (CPU, memory, threads, connections)
+- **Database Health**: Included in `/api/health` endpoint
+- **Redis Health**: Included in `/api/health` endpoint
 - **AI Service Health**: `GET /api/chat/health`
 - **AWS Connectivity**: `GET /api/aws/health`
 
@@ -440,8 +473,10 @@ docker-compose logs -f frontend
 - **JWT Authentication**: Secure token-based auth with refresh tokens
 - **OAuth Integration**: Google and Proton email OAuth support
 - **Data Encryption**: AES-256 encryption for sensitive data
-- **Rate Limiting**: Configurable API rate limiting
+- **Distributed Rate Limiting**: Redis-based rate limiting with sliding window algorithm
+- **JWT Token Blacklist**: Token revocation on logout via Redis
 - **IP Whitelisting**: Restrict access by IP address
+- **Security Headers**: Comprehensive security headers implementation
 - **HTTPS Enforcement**: TLS encryption for all communications
 
 ### **Security Best Practices**
@@ -517,23 +552,25 @@ docker-compose ps
 
 ## 🔮 **Roadmap**
 
-### **🔥 Next Release (v2.1.0)**
-- **CloudTrail AI Analysis**: Advanced security and cost analysis
-- **Budget Management**: Intelligent budget alerts and forecasting
-- **Smart Notifications**: Multi-channel alerts with escalation
-- **Infrastructure Templates**: Pre-built deployment templates
+### **🔥 Next Release (v2.4.0)**
+- **AI-Powered Predictive Operations**: Predict scaling needs, cost spikes, and failures
+- **Natural Language Infrastructure as Code**: Generate Terraform/CloudFormation from chat
+- **DevOps Workflow Automation**: AI-powered CI/CD pipeline generation
 
 ### **🎯 Future Features**
 - **Voice Interface**: Voice commands and responses
 - **Mobile App**: Native mobile applications
 - **Multi-Cloud Support**: Azure and Google Cloud integration
 - **Team Collaboration**: Multi-user workspaces
-- **Advanced Analytics**: Predictive insights and recommendations
+- **Advanced Analytics Dashboard**: Custom dashboard builder with advanced charting
 
 ### **📅 Version History**
-- **v2.0.0**: Real-time WebSocket implementation, enhanced AI
-- **v1.5.0**: Groq AI integration, cost optimization
-- **v1.0.0**: Initial release with EC2, S3, Lambda support
+- **v2.3.0** (2026-02-06): Infrastructure & DevOps enhancements, complete AWS service integration, testing infrastructure, distributed rate limiting
+- **v2.2.0** (2025-08-31): CloudTrail AI Analysis & Security Intelligence
+- **v2.1.0** (2025-08-25): Enhanced AI chatbot with general conversation support
+- **v2.0.0** (2025-08-24): Real-time WebSocket implementation, enhanced AI
+- **v1.5.0** (2025-08-23): Groq AI integration, cost optimization
+- **v1.0.0** (2025-08-22): Initial release with EC2, S3, Lambda support
 
 ---
 
@@ -595,18 +632,39 @@ docker-compose up -d
 
 **3. Database connection errors**
 ```bash
-# Reset database
+# Check database health
+curl http://localhost:8000/api/health
+
+# Reset database (WARNING: This will delete all data)
 docker-compose down -v
 docker-compose up -d
+
+# Run migrations manually if needed
+docker compose exec backend alembic upgrade head
 ```
 
 **4. Frontend build failures**
 ```bash
+# Rebuild frontend container
+docker compose build --no-cache frontend
+docker compose up -d frontend
+
+# Or locally:
 cd frontend
 rm -rf node_modules package-lock.json
-npm install
+npm install --legacy-peer-deps
 npm run build
 ```
+
+**5. Rate limiting issues**
+- Check Redis connection: `docker compose logs redis`
+- Verify `REDIS_URL` in `.docker.env`
+- Rate limiting falls back to in-memory if Redis is unavailable
+
+**6. Migration issues**
+- Check Alembic logs: `docker compose logs backend | grep -i migration`
+- Verify `DATABASE_URL` in `.docker.env`
+- Run migrations manually: `docker compose exec backend alembic upgrade head`
 
 ---
 
@@ -621,18 +679,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - PostgreSQL: PostgreSQL License
 - Docker: Apache 2.0 License
 
----
-
-## 🙏 **Acknowledgments**
-
-- **AWS**: For providing comprehensive cloud services
-- **Groq**: For advanced AI language model capabilities
-- **React Team**: For the amazing frontend framework
-- **FastAPI**: For the high-performance Python framework
-- **Material-UI**: For beautiful React components
-- **Open Source Community**: For countless contributions and inspiration
-
----
 
 ## 📊 **Project Stats**
 

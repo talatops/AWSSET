@@ -11,7 +11,7 @@ from datetime import datetime
 
 from .credential_manager import AWSCredentialManager
 from utils.logger import get_aws_logger
-from database import User, SystemLog
+from database import User, SystemLog, AWSResource
 
 logger = get_aws_logger()
 
@@ -250,3 +250,41 @@ class AWSBaseClient:
             
         except Exception as e:
             return self._handle_aws_error(e, "get_service_quotas")
+    
+    def _track_aws_resource(self, resource_type: str, resource_id: str, 
+                           resource_name: str, resource_arn: str, 
+                           status: str, meta_data: Dict[str, Any],
+                           created_via_chat: bool = False):
+        """Track AWS resource in database"""
+        try:
+            # Check if resource already exists
+            existing_resource = self.db.query(AWSResource).filter(
+                AWSResource.user_id == self.user_id,
+                AWSResource.resource_id == resource_id
+            ).first()
+            
+            if existing_resource:
+                # Update existing resource
+                existing_resource.status = status
+                existing_resource.meta_data = meta_data
+                existing_resource.updated_at = datetime.utcnow()
+            else:
+                # Create new resource tracking
+                new_resource = AWSResource(
+                    user_id=self.user_id,
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    resource_name=resource_name,
+                    resource_arn=resource_arn,
+                    region=self.get_user_region(),
+                    status=status,
+                    meta_data=meta_data,
+                    created_via_chat=created_via_chat
+                )
+                self.db.add(new_resource)
+            
+            self.db.commit()
+            
+        except Exception as e:
+            logger.error(f"Failed to track AWS resource: {e}")
+            self.db.rollback()

@@ -17,17 +17,19 @@ import hashlib
 
 from database import get_db, User
 from utils.logger import get_auth_logger
+from utils.encryption import encryption_manager
+from utils.config import AppConfig
 
 logger = get_auth_logger()
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# JWT Configuration
-JWT_SECRET_KEY = config("JWT_SECRET_KEY")
-JWT_ALGORITHM = config("JWT_ALGORITHM", default="HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = config("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", default=30, cast=int)
-REFRESH_TOKEN_EXPIRE_MINUTES = config("JWT_REFRESH_TOKEN_EXPIRE_MINUTES", default=10080, cast=int)
+# JWT Configuration (centralized via AppConfig, which validates required settings)
+JWT_SECRET_KEY = AppConfig.JWT_SECRET_KEY
+JWT_ALGORITHM = AppConfig.JWT_ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = AppConfig.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+REFRESH_TOKEN_EXPIRE_MINUTES = AppConfig.JWT_REFRESH_TOKEN_EXPIRE_MINUTES
 
 # OAuth Configuration
 GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
@@ -82,6 +84,25 @@ class AuthManager:
     def verify_token(token: str, token_type: str = "access") -> Dict[str, Any]:
         """Verify and decode JWT token"""
         try:
+            # Check blacklist (if Redis-based blacklist is enabled in auth router)
+            try:
+                import redis  # Local import to avoid hard dependency at module import time
+                from utils.config import AppConfig as _AppConfig
+
+                _redis = redis.from_url(_AppConfig.REDIS_URL, decode_responses=True)
+                if _redis.get(f"jwt_blacklist:{token}"):
+                    logger.warning("Rejected blacklisted JWT token")
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token has been revoked",
+                    )
+            except HTTPException:
+                # Re-raise explicit HTTP errors
+                raise
+            except Exception:
+                # Fail open if Redis/blacklist is unavailable, but still validate JWT normally
+                pass
+
             payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
             
             # Check token type
@@ -301,18 +322,20 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 
 def encrypt_aws_credentials(access_key: str, secret_key: str) -> tuple[str, str]:
     """Encrypt AWS credentials for secure storage"""
-    # Simple encryption using app secret (in production, use proper encryption)
-    salt = JWT_SECRET_KEY.encode()
-    
-    encrypted_access = hashlib.pbkdf2_hmac('sha256', access_key.encode(), salt, 100000).hex()
-    encrypted_secret = hashlib.pbkdf2_hmac('sha256', secret_key.encode(), salt, 100000).hex()
-    
+    # Delegate to the centralized EncryptionManager so that credentials
+    # are encrypted using the same strong, reversible scheme as the
+    # AWSCredentialManager.
+    encrypted_access, encrypted_secret, _ = encryption_manager.encrypt_aws_credentials(
+        access_key, secret_key, ""
+    )
     return encrypted_access, encrypted_secret
 
 def decrypt_aws_credentials(encrypted_access: str, encrypted_secret: str) -> tuple[str, str]:
     """Decrypt AWS credentials for use"""
-    # Note: This is a simplified approach. In production, use proper encryption/decryption
-    # For now, we'll store credentials securely and retrieve them as needed
-    # This is a placeholder - actual implementation would use reversible encryption
-    logger.warning("AWS credential decryption called - implement proper encryption in production")
-    return encrypted_access, encrypted_secret
+    # Delegate to the centralized EncryptionManager. This keeps the
+    # encryption/decryption logic in one place and ensures credentials
+    # can be safely recovered for use.
+    access_key, secret_key, _ = encryption_manager.decrypt_aws_credentials(
+        encrypted_access, encrypted_secret, ""
+    )
+    return access_key, secret_key

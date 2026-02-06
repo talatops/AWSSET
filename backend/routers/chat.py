@@ -16,8 +16,12 @@ from utils.logger import get_aws_logger
 from services.ai.gemini_service import groq_service
 from services.aws.credential_manager import AWSCredentialManager
 from services.aws.ec2_service import EC2Service
+from services.aws.s3_service import S3Service
+from services.aws.lambda_service import LambdaService
+from services.aws.rds_service import RDSService
 from database import get_db, User
 from sqlalchemy.orm import Session
+from utils.config import AppConfig
 
 logger = get_aws_logger()
 security = HTTPBearer()
@@ -235,15 +239,6 @@ async def send_chat_message(
         logger.error(f"Error processing chat message: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing message: {str(e)}")
 
-@router.get("/health")
-async def chat_health_check():
-    """Health check for chat service"""
-    return {
-        "status": "healthy",
-        "ai_service_configured": groq_service.is_configured,
-        "timestamp": datetime.utcnow().isoformat()
-    }
-
 @router.get("/suggestions")
 async def get_chat_suggestions(current_user: User = Depends(get_current_user)):
     """
@@ -320,11 +315,17 @@ async def execute_aws_command(ai_response: Dict[str, Any], current_user: User) -
         # Execute based on service
         if service == 'ec2':
             return await execute_ec2_command(action, parameters, int(user_id), db)
+        elif service == 's3':
+            return await execute_s3_command(action, parameters, int(user_id), db)
+        elif service == 'lambda':
+            return await execute_lambda_command(action, parameters, int(user_id), db)
+        elif service == 'rds':
+            return await execute_rds_command(action, parameters, int(user_id), db)
         else:
             return {
                 'success': False,
                 'error': f'Service {service} is not yet supported',
-                'supported_services': ['ec2']
+                'supported_services': ['ec2', 's3', 'lambda', 'rds']
             }
     
     except Exception as e:
@@ -357,7 +358,7 @@ async def execute_ec2_command(action: str, parameters: Dict, user_id: int, db: S
         
         elif action in ['create', 'launch']:
             instance_type = parameters.get('instance_type', 't2.micro')
-            ami_id = 'ami-0c02fb55956c7d316'  # Amazon Linux 2 AMI
+            ami_id = parameters.get('image_id') or AppConfig.DEFAULT_EC2_AMI
             
             instance_config = {
                 'ImageId': ami_id,
@@ -496,4 +497,143 @@ async def execute_ec2_command(action: str, parameters: Dict, user_id: int, db: S
         return {
             'success': False,
             'error': f'EC2 command failed: {str(e)}'
+        }
+
+async def execute_s3_command(action: str, parameters: Dict, user_id: int, db: Session) -> Dict[str, Any]:
+    """Execute S3-specific commands"""
+    try:
+        s3_service = S3Service(db, user_id)
+        
+        if action == 'list':
+            result = s3_service.list_buckets()
+            if result.get('success'):
+                buckets = result.get('buckets', [])
+                return {
+                    'success': True,
+                    'action': 'list_buckets',
+                    'data': buckets,
+                    'count': len(buckets),
+                    'message': f'Found {len(buckets)} S3 buckets'
+                }
+            else:
+                return result
+        
+        elif action == 'create':
+            bucket_name = parameters.get('bucket_name')
+            if not bucket_name:
+                return {'success': False, 'error': 'Bucket name is required'}
+            
+            result = s3_service.create_bucket(bucket_name, parameters.get('region'))
+            return result
+        
+        elif action == 'delete':
+            bucket_name = parameters.get('bucket_name')
+            if not bucket_name:
+                return {'success': False, 'error': 'Bucket name is required'}
+            
+            result = s3_service.delete_bucket(bucket_name, force=parameters.get('force', False))
+            return result
+        
+        else:
+            return {
+                'success': False,
+                'error': f'S3 action "{action}" is not yet supported',
+                'supported_actions': ['list', 'create', 'delete']
+            }
+    
+    except Exception as e:
+        logger.error(f"Error executing S3 command: {str(e)}")
+        return {
+            'success': False,
+            'error': f'S3 command failed: {str(e)}'
+        }
+
+async def execute_lambda_command(action: str, parameters: Dict, user_id: int, db: Session) -> Dict[str, Any]:
+    """Execute Lambda-specific commands"""
+    try:
+        lambda_service = LambdaService(db, user_id)
+        
+        if action == 'list':
+            result = lambda_service.list_functions()
+            if result.get('success'):
+                functions = result.get('functions', [])
+                return {
+                    'success': True,
+                    'action': 'list_functions',
+                    'data': functions,
+                    'count': len(functions),
+                    'message': f'Found {len(functions)} Lambda functions'
+                }
+            else:
+                return result
+        
+        elif action == 'invoke':
+            function_name = parameters.get('function_name')
+            if not function_name:
+                return {'success': False, 'error': 'Function name is required'}
+            
+            result = lambda_service.invoke_function(function_name, parameters.get('payload'))
+            return result
+        
+        else:
+            return {
+                'success': False,
+                'error': f'Lambda action "{action}" is not yet supported',
+                'supported_actions': ['list', 'invoke']
+            }
+    
+    except Exception as e:
+        logger.error(f"Error executing Lambda command: {str(e)}")
+        return {
+            'success': False,
+            'error': f'Lambda command failed: {str(e)}'
+        }
+
+async def execute_rds_command(action: str, parameters: Dict, user_id: int, db: Session) -> Dict[str, Any]:
+    """Execute RDS-specific commands"""
+    try:
+        rds_service = RDSService(db, user_id)
+        
+        if action == 'list':
+            result = rds_service.list_db_instances()
+            if result.get('success'):
+                instances = result.get('instances', [])
+                return {
+                    'success': True,
+                    'action': 'list_db_instances',
+                    'data': instances,
+                    'count': len(instances),
+                    'message': f'Found {len(instances)} RDS instances'
+                }
+            else:
+                return result
+        
+        elif action == 'create':
+            result = rds_service.create_db_instance(parameters)
+            return result
+        
+        elif action == 'delete':
+            db_instance_identifier = parameters.get('db_instance_identifier')
+            if not db_instance_identifier:
+                return {'success': False, 'error': 'DB instance identifier is required'}
+            
+            result = rds_service.delete_db_instance(
+                db_instance_identifier,
+                skip_final_snapshot=parameters.get('skip_final_snapshot', True),
+                final_snapshot_identifier=parameters.get('final_snapshot_identifier')
+            )
+            return result
+        
+        else:
+            return {
+                'success': False,
+                'error': f'RDS action "{action}" is not yet supported',
+                'supported_actions': ['list', 'create', 'delete']
+            }
+    
+    except Exception as e:
+        logger.error(f"Error executing RDS command: {str(e)}")
+        return {
+            'success': False,
+            'error': f'RDS command failed: {str(e)}'
         }

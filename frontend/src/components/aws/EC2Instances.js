@@ -55,6 +55,7 @@ import {
 import { motion } from 'framer-motion';
 import { useEC2 } from '../../hooks/useAWS';
 import { toast } from 'react-toastify';
+import { debugLog } from '../../utils/env';
 
 const EC2Instances = () => {
   const {
@@ -115,14 +116,14 @@ const EC2Instances = () => {
   });
 
   useEffect(() => {
-    console.log('🚀 EC2Instances component mounted, loading state:', loading);
+    debugLog('🚀 EC2Instances component mounted, loading state:', loading);
     loadInstances();
     loadResources();
   }, []);
 
   const loadResources = async () => {
     try {
-      console.log('🔄 Loading EC2 resources...');
+      debugLog('🔄 Loading EC2 resources...');
       setLocalLoading(true);
       
       // Load critical resources first (instances, security groups, key pairs)
@@ -136,19 +137,19 @@ const EC2Instances = () => {
       
       // Update UI immediately with critical resources
       if (criticalResources[0].success) {
-        console.log('🔒 Setting security groups:', criticalResources[0].security_groups?.length || 0);
+        debugLog('🔒 Setting security groups:', criticalResources[0].security_groups?.length || 0);
         setSecurityGroups(criticalResources[0].security_groups);
       }
       setResourceLoading(prev => ({ ...prev, securityGroups: false }));
       
       if (criticalResources[1].success) {
-        console.log('🔑 Setting key pairs:', criticalResources[1].key_pairs?.length || 0);
+        debugLog('🔑 Setting key pairs:', criticalResources[1].key_pairs?.length || 0);
         setKeyPairs(criticalResources[1].key_pairs);
       }
       setResourceLoading(prev => ({ ...prev, keyPairs: false }));
       
       if (criticalResources[2].success) {
-        console.log('🖼️ Setting AMIs:', criticalResources[2].amis?.length || 0);
+        debugLog('🖼️ Setting AMIs:', criticalResources[2].amis?.length || 0);
         setAMIs(criticalResources[2].amis);
       }
       setResourceLoading(prev => ({ ...prev, amis: false }));
@@ -161,13 +162,13 @@ const EC2Instances = () => {
         listVPCs()
       ]).then(([itResult, vpcResult]) => {
         if (itResult.success) {
-          console.log('💻 Setting instance types:', itResult.instance_types?.length || 0);
+          debugLog('💻 Setting instance types:', itResult.instance_types?.length || 0);
           setInstanceTypes(itResult.instance_types);
         }
         setResourceLoading(prev => ({ ...prev, instanceTypes: false }));
         
         if (vpcResult.success) {
-          console.log('🌐 Setting VPCs:', vpcResult.vpcs?.length || 0);
+          debugLog('🌐 Setting VPCs:', vpcResult.vpcs?.length || 0);
           setVPCs(vpcResult.vpcs);
           // Set default VPC
           const defaultVPC = vpcResult.default_vpc;
@@ -179,7 +180,7 @@ const EC2Instances = () => {
         }
         setResourceLoading(prev => ({ ...prev, vpcs: false }));
         
-        console.log('✅ All resources loaded successfully');
+        debugLog('✅ All resources loaded successfully');
         setLocalLoading(false);
       }).catch(error => {
         console.error('❌ Failed to load heavy resources:', error);
@@ -198,14 +199,14 @@ const EC2Instances = () => {
       setResourceLoading(prev => ({ ...prev, subnets: true }));
       const result = await listSubnets(vpcId);
       if (result.success) {
-        console.log('📡 Setting subnets:', result.subnets?.length || 0);
+        debugLog('📡 Setting subnets:', result.subnets?.length || 0);
         setSubnets(result.subnets);
         // Set first subnet as default
         if (result.subnets.length > 0) {
           setNewInstance(prev => ({ ...prev, subnet_id: result.subnets[0].subnet_id }));
         }
       }
-      console.log('✅ Subnets loaded successfully');
+      debugLog('✅ Subnets loaded successfully');
     } catch (error) {
       console.error('❌ Failed to load subnets:', error);
     } finally {
@@ -215,14 +216,14 @@ const EC2Instances = () => {
 
   const loadInstances = async () => {
     try {
-      console.log('🔄 Loading EC2 instances...');
-      console.log('📊 Current loading state:', loading);
+      debugLog('🔄 Loading EC2 instances...');
+      debugLog('📊 Current loading state:', loading);
       setLocalLoading(true);
       const result = await listInstances(filters);
-      console.log('📊 Instances result:', result);
+      debugLog('📊 Instances result:', result);
       setInstances(result.instances || []);
-      console.log('✅ Instances loaded:', result.instances?.length || 0);
-      console.log('📊 Loading state after instances:', loading);
+      debugLog('✅ Instances loaded:', result.instances?.length || 0);
+      debugLog('📊 Loading state after instances:', loading);
       setLocalLoading(false);
     } catch (error) {
       console.error('❌ Failed to load instances:', error);
@@ -233,7 +234,7 @@ const EC2Instances = () => {
 
 
   const handleMenuOpen = (event, instance) => {
-    console.log('📋 Opening menu for instance:', instance);
+    debugLog('📋 Opening menu for instance:', instance);
     setAnchorEl(event.currentTarget);
     setSelectedInstance(instance);
   };
@@ -244,7 +245,7 @@ const EC2Instances = () => {
   };
 
   const handleViewDetails = () => {
-    console.log('🔍 Opening details for instance:', selectedInstance);
+    debugLog('🔍 Opening details for instance:', selectedInstance);
     setDetailsDialog(true);
     // Don't close the menu immediately to keep selectedInstance
     setAnchorEl(null);
@@ -278,7 +279,7 @@ const EC2Instances = () => {
 
   const handleCreateInstance = async () => {
     try {
-      console.log('Creating instance with config:', newInstance);
+      debugLog('Creating instance with config:', newInstance);
       
       const instanceConfig = {
         Name: newInstance.name,
@@ -293,11 +294,11 @@ const EC2Instances = () => {
         VolumeEncrypted: newInstance.volume_encrypted,
       };
       
-      console.log('Sending instance config to backend:', instanceConfig);
+      debugLog('Sending instance config to backend:', instanceConfig);
       
       const result = await createInstance(instanceConfig);
       
-      console.log('Backend response:', result);
+      debugLog('Backend response:', result);
       
       if (result.success) {
         toast.success(`Instance creation initiated! Instance ID: ${result.instances[0].instance_id}`);
