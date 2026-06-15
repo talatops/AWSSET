@@ -14,8 +14,11 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 function App() {
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Show loading spinner while checking authentication
-  if (isLoading) {
+  // DEVELOPMENT MODE: Enable demo mode to bypass authentication
+  const DEMO_MODE = true;
+
+  // Show loading spinner while checking authentication (skip in demo mode)
+  if (isLoading && !DEMO_MODE) {
     return (
       <Box
         display="flex"
@@ -33,6 +36,9 @@ function App() {
       </Box>
     );
   }
+
+  // In demo mode, treat as authenticated
+  const isAuthenticatedOrDemo = DEMO_MODE || isAuthenticated;
 
   return (
     <ErrorBoundary>
@@ -52,13 +58,13 @@ function App() {
           <Route
             path="/login"
             element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
+              isAuthenticatedOrDemo ? <Navigate to="/dashboard" replace /> : <LoginPage />
             }
           />
           <Route
             path="/register"
             element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />
+              isAuthenticatedOrDemo ? <Navigate to="/dashboard" replace /> : <RegisterPage />
             }
           />
 
@@ -77,7 +83,7 @@ function App() {
             path="/"
             element={
               <Navigate
-                to={isAuthenticated ? "/dashboard" : "/login"}
+                to={isAuthenticatedOrDemo ? "/dashboard" : "/login"}
                 replace
               />
             }
@@ -88,7 +94,7 @@ function App() {
             path="*"
             element={
               <Navigate
-                to={isAuthenticated ? "/dashboard" : "/login"}
+                to={isAuthenticatedOrDemo ? "/dashboard" : "/login"}
                 replace
               />
             }

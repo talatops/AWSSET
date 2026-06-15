@@ -8,7 +8,10 @@ const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  // DEVELOPMENT MODE: Bypass authentication check
+  const DEMO_MODE = true;
+
+  if (isLoading && !DEMO_MODE) {
     return (
       <Box
         display="flex"
@@ -26,6 +29,11 @@ const ProtectedRoute = ({ children }) => {
         </motion.div>
       </Box>
     );
+  }
+
+  // In demo mode, always allow access to protected routes
+  if (DEMO_MODE) {
+    return children;
   }
 
   if (!isAuthenticated) {
