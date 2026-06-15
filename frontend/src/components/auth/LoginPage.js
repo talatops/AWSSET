@@ -67,33 +67,16 @@ const LoginPage = () => {
   };
 
   const validateForm = () => {
-    const errors = {};
-
-    if (!formData.email) {
-      errors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      errors.email = 'Please enter a valid email address';
-    }
-
-    if (!formData.password) {
-      errors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters long';
-    }
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    // No validation - allow any input for demo purposes
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      return;
-    }
-
+    // For demo mode, just accept any input
     try {
-      await login(formData.email, formData.password);
+      await login(formData.email || 'demo@example.com', formData.password || 'demo123');
     } catch (error) {
       // Error is handled by the AuthContext
       console.error('Login error:', error);
@@ -154,14 +137,13 @@ const LoginPage = () => {
             <TextField
               fullWidth
               name="email"
-              label="Email Address"
+              label="Email Address (optional for demo)"
               type="email"
               value={formData.email}
               onChange={handleInputChange}
-              error={!!formErrors.email}
-              helperText={formErrors.email}
               margin="normal"
               autoComplete="email"
+              placeholder="demo@example.com"
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -174,14 +156,13 @@ const LoginPage = () => {
             <TextField
               fullWidth
               name="password"
-              label="Password"
+              label="Password (optional for demo)"
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={handleInputChange}
-              error={!!formErrors.password}
-              helperText={formErrors.password}
               margin="normal"
               autoComplete="current-password"
+              placeholder="demo123"
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
