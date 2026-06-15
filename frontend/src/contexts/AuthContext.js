@@ -156,6 +156,29 @@ export const AuthProvider = ({ children }) => {
   // Check if user is authenticated on app load
   useEffect(() => {
     const initializeAuth = async () => {
+      // DEVELOPMENT MODE: Bypass authentication
+      if (process.env.REACT_APP_BYPASS_AUTH === 'true') {
+        const mockUser = {
+          id: 1,
+          username: 'demo_user',
+          email: 'demo@awsset.local',
+          created_at: new Date().toISOString(),
+        };
+        
+        // Set mock tokens
+        const mockToken = 'mock_token_' + Date.now();
+        const mockRefreshToken = 'mock_refresh_' + Date.now();
+        
+        localStorage.setItem('access_token', mockToken);
+        localStorage.setItem('refresh_token', mockRefreshToken);
+        
+        dispatch({
+          type: AUTH_ACTIONS.SET_USER,
+          payload: mockUser,
+        });
+        return;
+      }
+
       const token = localStorage.getItem('access_token');
       const refreshTokenStored = localStorage.getItem('refresh_token');
 
